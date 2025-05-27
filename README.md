@@ -13,6 +13,7 @@
 </details>
 
 
+
 ## Model Zoo
 
 | Model | Dataset | Input Size | AP<sup>val</sup> | AP<sub>50</sub><sup>val</sup> | #Params(M) | FPS |  checkpoint |
@@ -79,6 +80,12 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3
 torchrun --nproc_per_node=4 tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml
 ```
 
+```shell
+export CUDA_VISIBLE_DEVICES=0
+python tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml
+python tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml -r /home/anhnda/RT-DETR/rtdetr_pytorch/scheckpoints/rtdetr_r50vd_2x_coco_objects365_from_paddle.pth --test-only
+python tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml -r scheckpoint/rtdetr_r50vd_6x_coco_from_paddle.pth --test-only
+```
 - Evaluation on Multiple GPUs:
 
 ```shell

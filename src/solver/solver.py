@@ -136,7 +136,7 @@ class BaseSolver(object):
         '''load resume
         '''
         # for cuda:0 memory
-        state = torch.load(path, map_location='cpu')
+        state = torch.load(path, map_location='cpu', weights_only=True)
         self.load_state_dict(state)
 
     def load_tuning_state(self, path,):
