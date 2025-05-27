@@ -1,0 +1,8 @@
+scheckpoint
+output
+.git
+scheckpoints
+*.png
+*.pkl
+__pycache__
+*/__pycache__
