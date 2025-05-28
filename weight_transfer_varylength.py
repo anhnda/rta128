@@ -271,9 +271,9 @@ dropout = 0.0
 # Input tensors
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.manual_seed(42)  # For reproducibility
-S1 = 300
-S2 = 500
-S3 = 200
+S1 = 200
+S2 = 300
+S3 = 150
 batch = [
     torch.randn(S1, embed_dim, dtype=torch.float32, device='cuda'),
     torch.randn(S2, embed_dim, dtype=torch.float32, device='cuda'),
@@ -284,21 +284,21 @@ batch = [
 # Initialize models
 torch.manual_seed(42)  # Ensure same initialization
 pytorch_mha = nn.MultiheadAttention(embed_dim, num_heads, dropout=dropout, batch_first=True)
-custom_mha = CustomMultiheadAttention(embed_dim, num_heads, dropout=dropout)
+# custom_mha = CustomMultiheadAttention(embed_dim, num_heads, dropout=dropout)
 custom_mha_xf = CustomMultiheadAttentionXFormers(embed_dim, num_heads, dropout=dropout)
 
 # Move models to CUDA
 pytorch_mha = pytorch_mha.to(device)
-custom_mha = custom_mha.to(device)
+# custom_mha = custom_mha.to(device)
 custom_mha_xf = custom_mha_xf.to(device)
 
 # Copy weights
-copy_weights(pytorch_mha, custom_mha)
+# copy_weights(pytorch_mha, custom_mha)
 copy_weights(pytorch_mha, custom_mha_xf)
 
 # Set to evaluation mode
 pytorch_mha.eval()
-custom_mha.eval()
+# custom_mha.eval()
 custom_mha_xf.eval()
 
 xformer_inp = collate_xformer(batch)
@@ -311,7 +311,6 @@ attention_q = ~pytorch_inp['attention_mask']
 import time
 start_time = time.time()
 with torch.no_grad():
-
     for _ in range(100): 
         pytorch_output, pytorch_attn = pytorch_mha(query_q, key_q, value_q, key_padding_mask = attention_q, need_weights=True, average_attn_weights=False)
 torch.cuda.synchronize()  # Ensure GPU operations complete
