@@ -11,7 +11,7 @@ import torch.nn.functional as F
 import torch.nn.init as init 
 
 from .denoising import get_contrastive_denoising_training_group
-from .utils import deformable_attention_core_func, get_activation, inverse_sigmoid
+from .utils import deformable_attention_core_func, get_activation, inverse_sigmoid, deformable_attention_core_func_df
 from .utils import bias_init_with_prob
 
 
@@ -57,7 +57,7 @@ class MSDeformableAttention(nn.Module):
         self.value_proj = nn.Linear(embed_dim, embed_dim)
         self.output_proj = nn.Linear(embed_dim, embed_dim)
 
-        self.ms_deformable_attn_core = deformable_attention_core_func
+        self.ms_deformable_attn_core = deformable_attention_core_func_df
 
         self._reset_parameters()
 
@@ -103,14 +103,19 @@ class MSDeformableAttention(nn.Module):
         Returns:
             output (Tensor): [bs, Length_{query}, C]
         """
+        origin_shape = query.shape
+        query = query.reshape((1, origin_shape[0] * origin_shape[1], origin_shape[-1]))
         bs, Len_q = query.shape[:2]
         Len_v = value.shape[1]
+        bs_v = value.shape[0]
+        orgin_ref_shape = reference_points.shape
+        reference_points = reference_points.reshape(1, orgin_ref_shape[0] * orgin_ref_shape[1], orgin_ref_shape[2], orgin_ref_shape[3])
 
         value = self.value_proj(value)
         if value_mask is not None:
             value_mask = value_mask.astype(value.dtype).unsqueeze(-1)
             value *= value_mask
-        value = value.reshape(bs, Len_v, self.num_heads, self.head_dim)
+        value = value.reshape(bs_v, Len_v, self.num_heads, self.head_dim)
 
         sampling_offsets = self.sampling_offsets(query).reshape(
             bs, Len_q, self.num_heads, self.num_levels, self.num_points, 2)
@@ -135,9 +140,10 @@ class MSDeformableAttention(nn.Module):
                 "Last dim of reference_points must be 2 or 4, but get {} instead.".
                 format(reference_points.shape[-1]))
 
-        output = self.ms_deformable_attn_core(value, value_spatial_shapes, sampling_locations, attention_weights)
-
+        seq_lens = [300 for _ in range(bs_v)]
+        output = self.ms_deformable_attn_core(value, value_spatial_shapes, sampling_locations, attention_weights, seq_lens)
         output = self.output_proj(output)
+        output = output.reshape(origin_shape)
 
         return output
 
