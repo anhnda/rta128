@@ -69,20 +69,23 @@ def collate_padding_pytorch(batch):
 
 # Alternative version using xformers (if you want to keep using it)
 class CustomMultiheadAttentionXFormers(nn.Module):
-    def __init__(self, embed_dim, num_heads, dropout=0.0, pytorch_mha=None):
+    def __init__(self, embed_dim=-1, num_heads=-1, dropout=0.0, pytorch_mha=None):
         super(CustomMultiheadAttentionXFormers, self).__init__()
-        assert embed_dim % num_heads == 0, "embed_dim must be divisible by num_heads"
-        self.embed_dim = embed_dim
-        self.num_heads = num_heads
-        self.head_dim = embed_dim // num_heads
-        self.dropout = dropout
 
-        # Linear projections 
-        if pytorch_mha is not None:
+        if pytorch_mha is not None:                 
+            self.embed_dim = pytorch_mha.embed_dim
+            self.num_heads = pytorch_mha.num_heads
+            self.head_dim = pytorch_mha.embed_dim // pytorch_mha.num_heads
+            self.dropout = pytorch_mha.dropout
+            assert pytorch_mha.embed_dim % pytorch_mha.num_heads == 0
             self.qkv_linear_weight = pytorch_mha.in_proj_weight.reshape((3,embed_dim, embed_dim)).permute(0,2,1)
             self.qkv_linear_bias = pytorch_mha.in_proj_bias.reshape((3,embed_dim))
             self.out_linear = pytorch_mha.out_proj
         else:
+            self.embed_dim = embed_dim
+            self.num_heads = num_heads
+            self.head_dim = embed_dim // num_heads
+            self.dropout = dropout
             self.qkv_linear_weight = nn.Parameter(torch.zeros((3,embed_dim,embed_dim)))
             self.qkv_linear_bias = nn.Parameter(torch.zeros((3,embed_dim)))
             self.out_linear = nn.Linear(embed_dim, embed_dim)

@@ -14,6 +14,8 @@ from .denoising import get_contrastive_denoising_training_group
 from .utils import deformable_attention_core_func, get_activation, inverse_sigmoid, deformable_attention_core_func_df
 from .utils import bias_init_with_prob
 
+import xformers.ops as xops
+from xformers.ops import fmha
 
 from src.core import register
 
@@ -89,7 +91,8 @@ class MSDeformableAttention(nn.Module):
                 reference_points,
                 value,
                 value_spatial_shapes,
-                value_mask=None):
+                value_mask=None,
+                seq_lens = None):
         """
         Args:
             query (Tensor): [bs, query_length, C]
@@ -103,13 +106,15 @@ class MSDeformableAttention(nn.Module):
         Returns:
             output (Tensor): [bs, Length_{query}, C]
         """
-        origin_shape = query.shape
-        query = query.reshape((1, origin_shape[0] * origin_shape[1], origin_shape[-1]))
+        if seq_lens is None:
+            origin_shape = query.shape
+            query = query.reshape((1, origin_shape[0] * origin_shape[1], origin_shape[-1]))
+         
         bs, Len_q = query.shape[:2]
         Len_v = value.shape[1]
         bs_v = value.shape[0]
-        orgin_ref_shape = reference_points.shape
-        reference_points = reference_points.reshape(1, orgin_ref_shape[0] * orgin_ref_shape[1], orgin_ref_shape[2], orgin_ref_shape[3])
+        assert reference_points.shape[0] == 1
+        # reference_points = reference_points.reshape(1, orgin_ref_shape[0] * orgin_ref_shape[1], orgin_ref_shape[2], orgin_ref_shape[3])
 
         value = self.value_proj(value)
         if value_mask is not None:
@@ -139,13 +144,66 @@ class MSDeformableAttention(nn.Module):
             raise ValueError(
                 "Last dim of reference_points must be 2 or 4, but get {} instead.".
                 format(reference_points.shape[-1]))
-
-        seq_lens = [300 for _ in range(bs_v)]
+        if seq_lens is None:
+            seq_lens = [300 for _ in range(bs_v)]
         output = self.ms_deformable_attn_core(value, value_spatial_shapes, sampling_locations, attention_weights, seq_lens)
         output = self.output_proj(output)
-        output = output.reshape(origin_shape)
+        if seq_lens is None:
+            output = output.reshape(origin_shape)
 
         return output
+class CustomMultiheadAttentionXFormers(nn.Module):
+    def __init__(self, embed_dim=-1, num_heads=-1, dropout=0.0, pytorch_mha=None):
+        super(CustomMultiheadAttentionXFormers, self).__init__()
+
+        if pytorch_mha is not None:                 
+            self.embed_dim = pytorch_mha.embed_dim
+            self.num_heads = pytorch_mha.num_heads
+            self.head_dim = pytorch_mha.embed_dim // pytorch_mha.num_heads
+            self.dropout = pytorch_mha.dropout
+            assert pytorch_mha.embed_dim % pytorch_mha.num_heads == 0
+            self.qkv_linear_weight = pytorch_mha.in_proj_weight.reshape((3,self.embed_dim, self.embed_dim)).permute(0,2,1)
+            self.qkv_linear_bias = pytorch_mha.in_proj_bias.reshape((3,self.embed_dim))
+            self.out_linear = pytorch_mha.out_proj
+        else:
+            self.embed_dim = embed_dim
+            self.num_heads = num_heads
+            self.head_dim = embed_dim // num_heads
+            self.dropout = dropout
+            self.qkv_linear_weight = nn.Parameter(torch.zeros((3,self.embed_dim,self.embed_dim)))
+            self.qkv_linear_bias = nn.Parameter(torch.zeros((3,self.embed_dim)))
+            self.out_linear = nn.Linear(self.embed_dim, self.embed_dim)
+
+    def forward(self, query, key, value, attn_bias=None):
+        batch_size, seq_len, _ = query.size()
+        qkv = torch.cat((query, key, value),dim=0)
+        qkv_projected = torch.bmm(qkv, self.qkv_linear_weight) 
+        qkv_projected += self.qkv_linear_bias.unsqueeze(1)
+        
+
+        
+        # Reshape for multi-head attention - xformers expects [B, N, H, D]
+        q = qkv_projected[0].view(batch_size, seq_len, self.num_heads, self.head_dim)
+        k = qkv_projected[1].view(batch_size, seq_len, self.num_heads, self.head_dim)
+        v = qkv_projected[2].view(batch_size, seq_len, self.num_heads, self.head_dim)
+
+        # xformers memory-efficient attention
+        attn_output = xops.memory_efficient_attention(
+            query=q,
+            key=k,
+            value=v,
+            p=self.dropout if self.training else 0.0,
+            attn_bias=attn_bias,
+            op=None
+        )
+        
+        # Reshape back
+        attn_output = attn_output.view(batch_size, seq_len, self.embed_dim)
+        
+        # Final output projection
+        output = self.out_linear(attn_output)
+        
+        return output, None
 
 
 class TransformerDecoderLayer(nn.Module):
@@ -190,7 +248,38 @@ class TransformerDecoderLayer(nn.Module):
 
     def forward_ffn(self, tgt):
         return self.linear2(self.dropout3(self.activation(self.linear1(tgt))))
+    
 
+    def xformer_flattern_subseq(self, x,seq_lens, device):
+        B, N = x.shape[0], x.shape[1]
+        block_diag = fmha.attn_bias.BlockDiagonalMask.from_seqlens(seq_lens, device=device)
+        batch_sizes = [1 for _ in range(B)]
+        block_diag._batch_sizes = batch_sizes
+
+        seq_lens = torch.tensor(seq_lens, dtype=int)
+        x_flatten = torch.flatten(x,0,1)[(torch.arange(N).expand(B, N) < seq_lens.unsqueeze(1)).reshape(-1)]
+        x_flatten = x_flatten.unsqueeze(0).to(device)
+        block_diag.to(device)
+        return x_flatten, block_diag
+    def self_attn_xformer(self,q, k, value, attn_mask, mha):
+        if not hasattr(self,"attn_xformer"):
+            self.attn_xformer = CustomMultiheadAttentionXFormers(pytorch_mha=mha)
+        return self.attn_xformer(q,k,value,attn_mask)
+    def convert_padded(self, x, seq_len, device, M=300):
+        x = x.squeeze(0)  # [N, C]
+        # Split into subsequences
+        subseqs = torch.split(x, seq_len)  # List of [b1, C], [b2, C], ...
+
+        # Pad each subsequence manually to length M
+        padded_subseqs = []
+        for s in subseqs:
+            pad_len = M - s.size(0)
+            padded = F.pad(s, (0, 0, 0, pad_len))  # Pad rows (top, bottom), not cols
+            padded_subseqs.append(padded)
+
+        # Stack into final tensor
+        result = torch.stack(padded_subseqs)  # [B, M, C]
+        return result.to(device)
     def forward(self,
                 tgt,
                 reference_points,
@@ -201,15 +290,20 @@ class TransformerDecoderLayer(nn.Module):
                 memory_mask=None,
                 query_pos_embed=None):
         # self attention
+        B = tgt.shape[0]
+        sub_seq = [200 for _ in range(B)]
+        tgt, a_mask = self.xformer_flattern_subseq(tgt, sub_seq, tgt.device)
+        query_pos_embed, _ = self.xformer_flattern_subseq(query_pos_embed, sub_seq, tgt.device)
         q = k = self.with_pos_embed(tgt, query_pos_embed)
-
+        reference_points,_ = self.xformer_flattern_subseq(reference_points,sub_seq,tgt.device)
         # if attn_mask is not None:
         #     attn_mask = torch.where(
         #         attn_mask.to(torch.bool),
         #         torch.zeros_like(attn_mask),
         #         torch.full_like(attn_mask, float('-inf'), dtype=tgt.dtype))
 
-        tgt2, _ = self.self_attn(q, k, value=tgt, attn_mask=attn_mask)
+        # tgt2, _ = self.self_attn(q, k, value=tgt, attn_mask=attn_mask)
+        tgt2, _ = self.self_attn_xformer(q, k, value=tgt, attn_mask=a_mask, mha=self.self_attn)
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
 
@@ -219,7 +313,8 @@ class TransformerDecoderLayer(nn.Module):
             reference_points, 
             memory, 
             memory_spatial_shapes, 
-            memory_mask)
+            memory_mask,
+            sub_seq)
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
 
@@ -227,7 +322,7 @@ class TransformerDecoderLayer(nn.Module):
         tgt2 = self.forward_ffn(tgt)
         tgt = tgt + self.dropout4(tgt2)
         tgt = self.norm3(tgt.clamp(min=-65504, max=65504))
-
+        tgt = self.convert_padded(tgt,sub_seq, tgt.device, M=300)
         return tgt
 
 
