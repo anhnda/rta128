@@ -13,7 +13,7 @@ from typing import Iterable
 
 import torch
 import torch.amp 
-
+import time
 from src.data import CocoEvaluator
 from src.misc import (MetricLogger, SmoothedValue, reduce_dict)
 
@@ -111,7 +111,8 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
     #         output_dir=os.path.join(output_dir, "panoptic_eval"),
     #     )
     ic = -1
-    mx = 10
+    mx = 100000000
+    total_t = 0
     for samples, targets in metric_logger.log_every(data_loader, 10, header):
         ic += 1
         if ic == mx:
@@ -121,9 +122,10 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
 
         # with torch.autocast(device_type=str(device)):
         #     outputs = model(samples)
-
+        start_t = time.time()
         outputs = model(samples)
-
+        end_t = time.time()
+        total_t += end_t - start_t
         # loss_dict = criterion(outputs, targets)
         # weight_dict = criterion.weight_dict
         # # reduce losses over all GPUs for logging purposes
@@ -161,6 +163,7 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
+    print(f"Infer time: {total_t: .4f}", total_t)
     if coco_evaluator is not None:
         coco_evaluator.synchronize_between_processes()
     if panoptic_evaluator is not None:

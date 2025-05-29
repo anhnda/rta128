@@ -12,10 +12,9 @@ import torch.nn.init as init
 
 from .denoising import get_contrastive_denoising_training_group
 from .utils import deformable_attention_core_func, get_activation, inverse_sigmoid, deformable_attention_core_func_df
-from .utils import bias_init_with_prob
+from .utils import bias_init_with_prob, xformer_flattern_subseq,convert_padded_M
 
 import xformers.ops as xops
-from xformers.ops import fmha
 
 from src.core import register
 
@@ -250,36 +249,11 @@ class TransformerDecoderLayer(nn.Module):
         return self.linear2(self.dropout3(self.activation(self.linear1(tgt))))
     
 
-    def xformer_flattern_subseq(self, x,seq_lens, device):
-        B, N = x.shape[0], x.shape[1]
-        block_diag = fmha.attn_bias.BlockDiagonalMask.from_seqlens(seq_lens, device=device)
-        batch_sizes = [1 for _ in range(B)]
-        block_diag._batch_sizes = batch_sizes
-
-        seq_lens = torch.tensor(seq_lens, dtype=int)
-        x_flatten = torch.flatten(x,0,1)[(torch.arange(N).expand(B, N) < seq_lens.unsqueeze(1)).reshape(-1)]
-        x_flatten = x_flatten.unsqueeze(0).to(device)
-        block_diag.to(device)
-        return x_flatten, block_diag
     def self_attn_xformer(self,q, k, value, attn_mask, mha):
         if not hasattr(self,"attn_xformer"):
             self.attn_xformer = CustomMultiheadAttentionXFormers(pytorch_mha=mha)
         return self.attn_xformer(q,k,value,attn_mask)
-    def convert_padded(self, x, seq_len, device, M=300):
-        x = x.squeeze(0)  # [N, C]
-        # Split into subsequences
-        subseqs = torch.split(x, seq_len)  # List of [b1, C], [b2, C], ...
 
-        # Pad each subsequence manually to length M
-        padded_subseqs = []
-        for s in subseqs:
-            pad_len = M - s.size(0)
-            padded = F.pad(s, (0, 0, 0, pad_len))  # Pad rows (top, bottom), not cols
-            padded_subseqs.append(padded)
-
-        # Stack into final tensor
-        result = torch.stack(padded_subseqs)  # [B, M, C]
-        return result.to(device)
     def forward(self,
                 tgt,
                 reference_points,
@@ -288,14 +262,15 @@ class TransformerDecoderLayer(nn.Module):
                 memory_level_start_index,
                 attn_mask=None,
                 memory_mask=None,
-                query_pos_embed=None):
+                query_pos_embed=None, sub_seqs=None):
         # self attention
-        B = tgt.shape[0]
-        sub_seq = [200 for _ in range(B)]
-        tgt, a_mask = self.xformer_flattern_subseq(tgt, sub_seq, tgt.device)
-        query_pos_embed, _ = self.xformer_flattern_subseq(query_pos_embed, sub_seq, tgt.device)
+        B = memory.shape[0]
+        sub_seq = sub_seqs
+        assert sub_seqs is not None
+        tgt, a_mask = xformer_flattern_subseq(tgt, sub_seq, B, tgt.device)
+        query_pos_embed, _ = xformer_flattern_subseq(query_pos_embed, sub_seq, B, tgt.device)
         q = k = self.with_pos_embed(tgt, query_pos_embed)
-        reference_points,_ = self.xformer_flattern_subseq(reference_points,sub_seq,tgt.device)
+        reference_points,_ = xformer_flattern_subseq(reference_points,sub_seq,B, tgt.device)
         # if attn_mask is not None:
         #     attn_mask = torch.where(
         #         attn_mask.to(torch.bool),
@@ -322,7 +297,7 @@ class TransformerDecoderLayer(nn.Module):
         tgt2 = self.forward_ffn(tgt)
         tgt = tgt + self.dropout4(tgt2)
         tgt = self.norm3(tgt.clamp(min=-65504, max=65504))
-        tgt = self.convert_padded(tgt,sub_seq, tgt.device, M=300)
+        # tgt = convert_padded_M(tgt,sub_seq, tgt.device, M=300)
         return tgt
 
 
@@ -349,14 +324,17 @@ class TransformerDecoder(nn.Module):
         dec_out_bboxes = []
         dec_out_logits = []
         ref_points_detach = F.sigmoid(ref_points_unact)
-
+        sub_seq = [200 for _ in range(output.shape[0])]
         for i, layer in enumerate(self.layers):
             ref_points_input = ref_points_detach.unsqueeze(2)
+            ref_points_detach, _ = xformer_flattern_subseq(ref_points_detach, sub_seq, memory.shape[0])
+            ref_points_input, _ = xformer_flattern_subseq(ref_points_input, sub_seq, memory.shape[0])
             query_pos_embed = query_pos_head(ref_points_detach)
+            query_pos_embed, _ = xformer_flattern_subseq(query_pos_embed, sub_seq, memory.shape[0])
 
             output = layer(output, ref_points_input, memory,
                            memory_spatial_shapes, memory_level_start_index,
-                           attn_mask, memory_mask, query_pos_embed)
+                           attn_mask, memory_mask, query_pos_embed,sub_seq)
 
             inter_ref_bbox = F.sigmoid(bbox_head[i](output) + inverse_sigmoid(ref_points_detach))
 
@@ -376,7 +354,12 @@ class TransformerDecoder(nn.Module):
             ref_points_detach = inter_ref_bbox.detach(
             ) if self.training else inter_ref_bbox
 
-        return torch.stack(dec_out_bboxes), torch.stack(dec_out_logits)
+        dec_bboxes =  torch.stack(dec_out_bboxes)
+        dec_logits = torch.stack(dec_out_logits)
+        #dec_bboxes[:,:,200:] = 0
+        #dec_logits[:,:,200:] = -torch.inf
+        #return dec_bboxes, dec_logits
+        return convert_padded_M(dec_bboxes,sub_seq, value=-torch.inf).unsqueeze(0), convert_padded_M(dec_logits,sub_seq, value=-torch.inf).unsqueeze(0)
 
 
 @register
