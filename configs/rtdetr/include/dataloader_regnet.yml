@@ -14,8 +14,8 @@ train_dataloader:
         - {type: Resize, size: [640, 640], }
         # - {type: Resize, size: 639, max_size: 640}
         # - {type: PadToSize, spatial_size: 640}
-        - {type: ToTensor}
-        - {type: ToDtype, dtype: !!python/name:torch.float32 ''}
+        - {type: ToImage}
+        - {type: ToDtype, dtype: !!python/name:torch.float32 '', scale: True}
         - {type: SanitizeBoundingBoxes, min_size: 1}
         - {type: ConvertBox, out_fmt: 'cxcywh', normalize: True}
   shuffle: True
@@ -31,8 +31,8 @@ val_dataloader:
         # - {type: Resize, size: 639, max_size: 640}
         # - {type: PadToSize, spatial_size: 640}
         - {type: Resize, size: [640, 640]}
-        - {type: ToTensor}
-        - {type: ToDtype, dtype: !!python/name:torch.float32 ''}
+        - {type: ToImage}
+        - {type: ToDtype, dtype: !!python/name:torch.float32 '', scale: True}
   shuffle: False
   batch_size: 8
   num_workers: 2

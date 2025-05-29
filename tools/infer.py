@@ -145,7 +145,8 @@ def main(args, ):
     
     transforms = T.Compose([
         T.Resize((640, 640)),  
-        T.ToTensor(),
+        T.ToImage(),
+        T.ToDtype(dtype=torch.float32,scale= True)
     ])
     im_data = transforms(im_pil)[None].to(args.device)
     if args.sliced:

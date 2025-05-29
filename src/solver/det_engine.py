@@ -110,8 +110,12 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
     #         data_loader.dataset.ann_folder,
     #         output_dir=os.path.join(output_dir, "panoptic_eval"),
     #     )
-
+    ic = -1
+    mx = 10
     for samples, targets in metric_logger.log_every(data_loader, 10, header):
+        ic += 1
+        if ic == mx:
+            break
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
