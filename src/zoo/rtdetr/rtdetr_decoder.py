@@ -267,7 +267,7 @@ class TransformerDecoderLayer(nn.Module):
         B = memory.shape[0]
         sub_seq = sub_seqs
         assert sub_seqs is not None
-        tgt, a_mask = xformer_flattern_subseq(tgt, sub_seq, B, tgt.device)
+        tgt, a_mask = xformer_flattern_subseq(tgt, sub_seq, B, tgt.device, with_mask=True)
         query_pos_embed, _ = xformer_flattern_subseq(query_pos_embed, sub_seq, B, tgt.device)
         q = k = self.with_pos_embed(tgt, query_pos_embed)
         reference_points,_ = xformer_flattern_subseq(reference_points,sub_seq,B, tgt.device)
@@ -324,7 +324,7 @@ class TransformerDecoder(nn.Module):
         dec_out_bboxes = []
         dec_out_logits = []
         ref_points_detach = F.sigmoid(ref_points_unact)
-        sub_seq = [200 for _ in range(output.shape[0])]
+        sub_seq = [100 for _ in range(output.shape[0])]
         for i, layer in enumerate(self.layers):
             ref_points_input = ref_points_detach.unsqueeze(2)
             ref_points_detach, _ = xformer_flattern_subseq(ref_points_detach, sub_seq, memory.shape[0])
@@ -359,7 +359,7 @@ class TransformerDecoder(nn.Module):
         #dec_bboxes[:,:,200:] = 0
         #dec_logits[:,:,200:] = -torch.inf
         #return dec_bboxes, dec_logits
-        return convert_padded_M(dec_bboxes,sub_seq, value=-torch.inf).unsqueeze(0), convert_padded_M(dec_logits,sub_seq, value=-torch.inf).unsqueeze(0)
+        return convert_padded_M(dec_bboxes,sub_seq, value=0).unsqueeze(0), convert_padded_M(dec_logits,sub_seq, value=-torch.inf).unsqueeze(0)
 
 
 @register

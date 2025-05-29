@@ -26,7 +26,7 @@ def convert_padded_M(x, seq_len, device=None, M=300, value=0):
     # Stack into final tensor
     result = torch.stack(padded_subseqs)  # [B, M, C]
     return result.to(device)
-def xformer_flattern_subseq(x,seq_lens, batch_size, device=None):
+def xformer_flattern_subseq(x,seq_lens, batch_size, device=None, with_mask=False):
     B, N = x.shape[0], x.shape[1]
     if device is None:
         device = x.device
@@ -39,10 +39,13 @@ def xformer_flattern_subseq(x,seq_lens, batch_size, device=None):
     else:
         x_flatten = x
         B = batch_size
-    block_diag = fmha.attn_bias.BlockDiagonalMask.from_seqlens(seq_lens_org, device=device)
-    batch_sizes = [1 for _ in range(B)]
-    block_diag._batch_sizes = batch_sizes
-    block_diag.to(device)
+    if not with_mask:
+        block_diag = None
+    else:
+        block_diag = fmha.attn_bias.BlockDiagonalMask.from_seqlens(seq_lens_org, device=device)
+        batch_sizes = [1 for _ in range(B)]
+        block_diag._batch_sizes = batch_sizes
+        block_diag.to(device)
     return x_flatten, block_diag
 def inverse_sigmoid(x: torch.Tensor, eps: float=1e-5) -> torch.Tensor:
     x = x.clip(min=0., max=1.)
