@@ -111,7 +111,7 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
     #         output_dir=os.path.join(output_dir, "panoptic_eval"),
     #     )
     ic = -1
-    mx = 10000000
+    mx = 300
     infer_time = 0
     for samples, targets in metric_logger.log_every(data_loader, 10, header):
         ic += 1
@@ -163,7 +163,12 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
-    print(f"Infer time: {infer_time: .4f}. Decode time: {model.decoder.t_stats: .4f}")
+    print(f"Infer time: {infer_time: .4f}")
+    print(f"Infer Enc: {model.enc_time: .4f}, Infer Dec time: {model.dec_time : .4f}")
+    print(f"Decoder_through_layer_time: {model.decoder.t_stats : .4f}, Other dec time: {model.decoder.other_time: .4f}, ")
+
+    print(f"self_attn_time: {model.decoder.decoder.total_self_attn_time: .4f}, cross_attn_time: {model.decoder.decoder.total_cross_attn_time: .4f}, other_dec_time: {model.decoder.decoder.total_other_dec_time: .4f}")
+    print(f"Infer total_dec_data_prepare_time: {model.decoder.decoder.dec_data_prepare_time: .4f}")
     if coco_evaluator is not None:
         coco_evaluator.synchronize_between_processes()
     if panoptic_evaluator is not None:
