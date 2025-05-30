@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn 
 import torch.nn.functional as F 
 import torch.nn.init as init 
-
+import time
 from .denoising import get_contrastive_denoising_training_group
 from .utils import deformable_attention_core_func, get_activation, inverse_sigmoid
 from .utils import bias_init_with_prob
@@ -322,6 +322,7 @@ class RTDETRTransformer(nn.Module):
         self.num_decoder_layers = num_decoder_layers
         self.eval_spatial_size = eval_spatial_size
         self.aux_loss = aux_loss
+        self.t_stats = 0
 
         # backbone feature projection
         self._build_input_proj_layer(feat_channels)
@@ -535,7 +536,7 @@ class RTDETRTransformer(nn.Module):
 
         target, init_ref_points_unact, enc_topk_bboxes, enc_topk_logits = \
             self._get_decoder_input(memory, spatial_shapes, denoising_class, denoising_bbox_unact)
-
+        start_t = time.time()
         # decoder
         out_bboxes, out_logits = self.decoder(
             target,
@@ -547,7 +548,8 @@ class RTDETRTransformer(nn.Module):
             self.dec_score_head,
             self.query_pos_head,
             attn_mask=attn_mask)
-
+        end_t = time.time()
+        self.t_stats += end_t - start_t
         if self.training and dn_meta is not None:
             dn_out_bboxes, out_bboxes = torch.split(out_bboxes, dn_meta['dn_num_split'], dim=2)
             dn_out_logits, out_logits = torch.split(out_logits, dn_meta['dn_num_split'], dim=2)
