@@ -1,5 +1,7 @@
 scheckpoint
 output
+output/*
+output/*/*
 .git
 scheckpoints
 *.png
