@@ -1,15 +1,17 @@
-import torch
-B, N, C = 3, 300, 256
-# Input
-x = torch.randn(B, N, C)
-lengths = torch.tensor([3, 2, 4])
+from xformers.ops import memory_efficient_attention
 
-# Build a mask
-range_tensor = torch.arange(N).unsqueeze(0).expand(B, N)  # (B, N)
-mask = range_tensor < lengths.unsqueeze(1)                # (B, N)
+possible_ops = [
+    "cutlass",
+    "flash",
+    "triton",
+    "math",   # always available, pure PyTorch fallback
+    None      # default selection
+]
 
-# Masking
-# Flatten x and mask
-x_flat = x.reshape(-1, C)  # (B*N, C)
-mask_flat = mask.reshape(-1)  # (B*N,)
-result = x_flat[mask_flat]  # shape: (sum(lengths), C)
+for op in possible_ops:
+    try:
+        print(f"Trying op = {op}")
+        out = memory_efficient_attention(q, k, v, attn_bias=None, op=op)
+        print(f"✅ {op} succeeded, output shape: {out.shape}")
+    except Exception as e:
+        print(f"❌ {op} failed: {e}")

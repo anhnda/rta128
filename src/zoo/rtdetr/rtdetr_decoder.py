@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn 
 import torch.nn.functional as F 
 import torch.nn.init as init 
-
+import time
 from .denoising import get_contrastive_denoising_training_group
 from .utils import deformable_attention_core_func, get_activation, inverse_sigmoid, deformable_attention_core_func_df
 from .utils import bias_init_with_prob, xformer_flattern_subseq,convert_padded_M
@@ -233,7 +233,9 @@ class TransformerDecoderLayer(nn.Module):
         self.linear2 = nn.Linear(dim_feedforward, d_model)
         self.dropout4 = nn.Dropout(dropout)
         self.norm3 = nn.LayerNorm(d_model)
-
+        self.other_dec_time = 0
+        self.self_attn_time = 0
+        self.cross_attn_time = 0
         # self._reset_parameters()
 
     # def _reset_parameters(self):
@@ -264,6 +266,8 @@ class TransformerDecoderLayer(nn.Module):
                 memory_mask=None,
                 query_pos_embed=None, sub_seqs=None):
         # self attention
+        self.other_dec_time = 0
+        start_t = time.time()
         B = memory.shape[0]
         sub_seq = sub_seqs
         assert sub_seqs is not None
@@ -271,6 +275,7 @@ class TransformerDecoderLayer(nn.Module):
         query_pos_embed, _ = xformer_flattern_subseq(query_pos_embed, sub_seq, B, tgt.device)
         q = k = self.with_pos_embed(tgt, query_pos_embed)
         reference_points,_ = xformer_flattern_subseq(reference_points,sub_seq,B, tgt.device)
+        self.other_dec_time += time.time() - start_t
         # if attn_mask is not None:
         #     attn_mask = torch.where(
         #         attn_mask.to(torch.bool),
@@ -278,11 +283,17 @@ class TransformerDecoderLayer(nn.Module):
         #         torch.full_like(attn_mask, float('-inf'), dtype=tgt.dtype))
 
         # tgt2, _ = self.self_attn(q, k, value=tgt, attn_mask=attn_mask)
+        self.self_attn_time = 0
+        self.cross_attn_time = 0
+        start_t = time.time()
         tgt2, _ = self.self_attn_xformer(q, k, value=tgt, attn_mask=a_mask, mha=self.self_attn)
+        self.self_attn_time += time.time() - start_t
+        start_t = time.time()
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
-
+        self.other_dec_time += time.time() - start_t
         # cross attention
+        start_t = time.time()
         tgt2 = self.cross_attn(\
             self.with_pos_embed(tgt, query_pos_embed), 
             reference_points, 
@@ -290,6 +301,10 @@ class TransformerDecoderLayer(nn.Module):
             memory_spatial_shapes, 
             memory_mask,
             sub_seq)
+        
+        self.cross_attn_time += time.time() - start_t
+
+        start_t = time.time()
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
 
@@ -297,6 +312,7 @@ class TransformerDecoderLayer(nn.Module):
         tgt2 = self.forward_ffn(tgt)
         tgt = tgt + self.dropout4(tgt2)
         tgt = self.norm3(tgt.clamp(min=-65504, max=65504))
+        self.other_dec_time += time.time() - start_t
         # tgt = convert_padded_M(tgt,sub_seq, tgt.device, M=300)
         return tgt
 
@@ -308,7 +324,10 @@ class TransformerDecoder(nn.Module):
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
-
+        self.total_self_attn_time = 0
+        self.total_cross_attn_time = 0
+        self.total_other_dec_time = 0
+        self.dec_data_prepare_time = 0
     def forward(self,
                 tgt,
                 ref_points_unact,
@@ -324,18 +343,23 @@ class TransformerDecoder(nn.Module):
         dec_out_bboxes = []
         dec_out_logits = []
         ref_points_detach = F.sigmoid(ref_points_unact)
+        
         sub_seq = [100 for _ in range(output.shape[0])]
         for i, layer in enumerate(self.layers):
+            start_t = time.time()
             ref_points_input = ref_points_detach.unsqueeze(2)
             ref_points_detach, _ = xformer_flattern_subseq(ref_points_detach, sub_seq, memory.shape[0])
             ref_points_input, _ = xformer_flattern_subseq(ref_points_input, sub_seq, memory.shape[0])
             query_pos_embed = query_pos_head(ref_points_detach)
             query_pos_embed, _ = xformer_flattern_subseq(query_pos_embed, sub_seq, memory.shape[0])
-
+            self.dec_data_prepare_time += time.time() - start_t
             output = layer(output, ref_points_input, memory,
                            memory_spatial_shapes, memory_level_start_index,
                            attn_mask, memory_mask, query_pos_embed,sub_seq)
-
+            self.total_cross_attn_time += layer.cross_attn_time
+            self.total_self_attn_time += layer.self_attn_time
+            self.total_other_dec_time += layer.other_dec_time
+            start_t = time.time()
             inter_ref_bbox = F.sigmoid(bbox_head[i](output) + inverse_sigmoid(ref_points_detach))
 
             if self.training:
@@ -353,15 +377,18 @@ class TransformerDecoder(nn.Module):
             ref_points = inter_ref_bbox
             ref_points_detach = inter_ref_bbox.detach(
             ) if self.training else inter_ref_bbox
-
+            self.dec_data_prepare_time += time.time() - start_t
+        start_t = time.time()
         dec_bboxes =  torch.stack(dec_out_bboxes)
         dec_logits = torch.stack(dec_out_logits)
+
         #dec_bboxes[:,:,200:] = 0
         #dec_logits[:,:,200:] = -torch.inf
         #return dec_bboxes, dec_logits
-        return convert_padded_M(dec_bboxes,sub_seq, value=0).unsqueeze(0), convert_padded_M(dec_logits,sub_seq, value=-torch.inf).unsqueeze(0)
-
-
+        dec_bb= convert_padded_M(dec_bboxes,sub_seq, value=0).unsqueeze(0)
+        dec_lg = convert_padded_M(dec_logits,sub_seq, value=-torch.inf).unsqueeze(0)
+        self.dec_data_prepare_time += time.time() - start_t
+        return dec_bb, dec_lg
 @register
 class RTDETRTransformer(nn.Module):
     __share__ = ['num_classes']
@@ -406,7 +433,8 @@ class RTDETRTransformer(nn.Module):
         self.num_decoder_layers = num_decoder_layers
         self.eval_spatial_size = eval_spatial_size
         self.aux_loss = aux_loss
-
+        self.t_stats = 0
+        self.other_time = 0
         # backbone feature projection
         self._build_input_proj_layer(feat_channels)
 
@@ -600,7 +628,7 @@ class RTDETRTransformer(nn.Module):
 
 
     def forward(self, feats, targets=None):
-
+        start_t = time.time()
         # input projection and embedding
         (memory, spatial_shapes, level_start_index) = self._get_encoder_input(feats)
         
@@ -619,8 +647,9 @@ class RTDETRTransformer(nn.Module):
 
         target, init_ref_points_unact, enc_topk_bboxes, enc_topk_logits = \
             self._get_decoder_input(memory, spatial_shapes, denoising_class, denoising_bbox_unact)
-
+        self.other_time += time.time() - start_t
         # decoder
+        start_t = time.time()
         out_bboxes, out_logits = self.decoder(
             target,
             init_ref_points_unact,
@@ -631,7 +660,10 @@ class RTDETRTransformer(nn.Module):
             self.dec_score_head,
             self.query_pos_head,
             attn_mask=attn_mask)
-
+        end_t = time.time()
+        self.t_stats += end_t - start_t
+    
+        start_t = time.time()
         if self.training and dn_meta is not None:
             dn_out_bboxes, out_bboxes = torch.split(out_bboxes, dn_meta['dn_num_split'], dim=2)
             dn_out_logits, out_logits = torch.split(out_logits, dn_meta['dn_num_split'], dim=2)
@@ -645,7 +677,7 @@ class RTDETRTransformer(nn.Module):
             if self.training and dn_meta is not None:
                 out['dn_aux_outputs'] = self._set_aux_loss(dn_out_logits, dn_out_bboxes)
                 out['dn_meta'] = dn_meta
-
+        self.other_time += time.time() -start_t
         return out
 
 
