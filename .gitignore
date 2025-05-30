@@ -2,6 +2,7 @@ scheckpoint
 output
 output/*
 output/*/*
+output/rtdetr_r50vd_6x_coco/eval.pth
 .git
 scheckpoints
 *.png
