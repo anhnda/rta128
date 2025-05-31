@@ -12,7 +12,7 @@ import torch.nn.init as init
 import time
 from .denoising import get_contrastive_denoising_training_group
 from .utils import deformable_attention_core_func, get_activation, inverse_sigmoid, deformable_attention_core_func_df
-from .utils import bias_init_with_prob, xformer_flattern_subseq,convert_padded_M
+from .utils import bias_init_with_prob, xformer_flattern_subseq,convert_padded_M,convert_padded_maxlen
 
 import xformers.ops as xops
 
@@ -58,7 +58,7 @@ class MSDeformableAttention(nn.Module):
         self.value_proj = nn.Linear(embed_dim, embed_dim)
         self.output_proj = nn.Linear(embed_dim, embed_dim)
 
-        self.ms_deformable_attn_core = deformable_attention_core_func_df
+        self.ms_deformable_attn_core = deformable_attention_core_func
 
         self._reset_parameters()
 
@@ -112,7 +112,7 @@ class MSDeformableAttention(nn.Module):
         bs, Len_q = query.shape[:2]
         Len_v = value.shape[1]
         bs_v = value.shape[0]
-        assert reference_points.shape[0] == 1
+        # assert reference_points.shape[0] == 1
         # reference_points = reference_points.reshape(1, orgin_ref_shape[0] * orgin_ref_shape[1], orgin_ref_shape[2], orgin_ref_shape[3])
 
         value = self.value_proj(value)
@@ -143,12 +143,12 @@ class MSDeformableAttention(nn.Module):
             raise ValueError(
                 "Last dim of reference_points must be 2 or 4, but get {} instead.".
                 format(reference_points.shape[-1]))
-        if seq_lens is None:
-            seq_lens = [300 for _ in range(bs_v)]
+        # if seq_lens is None:
+        #     seq_lens = [300 for _ in range(bs_v)]
         output = self.ms_deformable_attn_core(value, value_spatial_shapes, sampling_locations, attention_weights, seq_lens)
         output = self.output_proj(output)
-        if seq_lens is None:
-            output = output.reshape(origin_shape)
+        # if seq_lens is None:
+        #     output = output.reshape(origin_shape)
 
         return output
 class CustomMultiheadAttentionXFormers(nn.Module):
@@ -265,12 +265,14 @@ class TransformerDecoderLayer(nn.Module):
                 attn_mask=None,
                 memory_mask=None,
                 query_pos_embed=None, sub_seqs=None):
-        # self attention
+                # self attention
         self.other_dec_time = 0
         start_t = time.time()
         B = memory.shape[0]
         sub_seq = sub_seqs
         assert sub_seqs is not None
+        mx = max(sub_seq)
+        sub_seq_mx = [mx for _ in range(len(sub_seq))]
         tgt, a_mask = xformer_flattern_subseq(tgt, sub_seq, B, tgt.device, with_mask=True)
         query_pos_embed, _ = xformer_flattern_subseq(query_pos_embed, sub_seq, B, tgt.device)
         q = k = self.with_pos_embed(tgt, query_pos_embed)
@@ -294,14 +296,17 @@ class TransformerDecoderLayer(nn.Module):
         self.other_dec_time += time.time() - start_t
         # cross attention
         start_t = time.time()
+        tx = self.with_pos_embed(tgt, query_pos_embed)
+        tx = convert_padded_maxlen(tx,sub_seq)
+        reference_points = convert_padded_maxlen(reference_points, sub_seq)
         tgt2 = self.cross_attn(\
-            self.with_pos_embed(tgt, query_pos_embed), 
+            tx, 
             reference_points, 
             memory, 
             memory_spatial_shapes, 
             memory_mask,
             sub_seq)
-        
+        tgt2, _ = xformer_flattern_subseq(tgt2, sub_seq)
         self.cross_attn_time += time.time() - start_t
 
         start_t = time.time()
@@ -315,6 +320,65 @@ class TransformerDecoderLayer(nn.Module):
         self.other_dec_time += time.time() - start_t
         # tgt = convert_padded_M(tgt,sub_seq, tgt.device, M=300)
         return tgt
+    def forward2(self,
+                    tgt,
+                    reference_points,
+                    memory,
+                    memory_spatial_shapes,
+                    memory_level_start_index,
+                    attn_mask=None,
+                    memory_mask=None,
+                    query_pos_embed=None, sub_seqs=None):
+            # self attention
+            self.other_dec_time = 0
+            start_t = time.time()
+            B = memory.shape[0]
+            sub_seq = sub_seqs
+            assert sub_seqs is not None
+            tgt, a_mask = xformer_flattern_subseq(tgt, sub_seq, B, tgt.device, with_mask=True)
+            query_pos_embed, _ = xformer_flattern_subseq(query_pos_embed, sub_seq, B, tgt.device)
+            q = k = self.with_pos_embed(tgt, query_pos_embed)
+            reference_points,_ = xformer_flattern_subseq(reference_points,sub_seq,B, tgt.device)
+            self.other_dec_time += time.time() - start_t
+            # if attn_mask is not None:
+            #     attn_mask = torch.where(
+            #         attn_mask.to(torch.bool),
+            #         torch.zeros_like(attn_mask),
+            #         torch.full_like(attn_mask, float('-inf'), dtype=tgt.dtype))
+
+            # tgt2, _ = self.self_attn(q, k, value=tgt, attn_mask=attn_mask)
+            self.self_attn_time = 0
+            self.cross_attn_time = 0
+            start_t = time.time()
+            tgt2, _ = self.self_attn_xformer(q, k, value=tgt, attn_mask=a_mask, mha=self.self_attn)
+            self.self_attn_time += time.time() - start_t
+            start_t = time.time()
+            tgt = tgt + self.dropout1(tgt2)
+            tgt = self.norm1(tgt)
+            self.other_dec_time += time.time() - start_t
+            # cross attention
+            start_t = time.time()
+            tgt2 = self.cross_attn(\
+                self.with_pos_embed(tgt, query_pos_embed), 
+                reference_points, 
+                memory, 
+                memory_spatial_shapes, 
+                memory_mask,
+                sub_seq)
+            
+            self.cross_attn_time += time.time() - start_t
+
+            start_t = time.time()
+            tgt = tgt + self.dropout2(tgt2)
+            tgt = self.norm2(tgt)
+
+            # ffn
+            tgt2 = self.forward_ffn(tgt)
+            tgt = tgt + self.dropout4(tgt2)
+            tgt = self.norm3(tgt.clamp(min=-65504, max=65504))
+            self.other_dec_time += time.time() - start_t
+            # tgt = convert_padded_M(tgt,sub_seq, tgt.device, M=300)
+            return tgt
 
 
 class TransformerDecoder(nn.Module):

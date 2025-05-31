@@ -6,6 +6,30 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F 
 from xformers.ops import fmha
+def convert_padded_maxlen(x, seq_len, device=None, value=0):
+    if device is None:
+        device = x.device
+    if x.shape[0] == 1:
+        x = x.squeeze(0)
+    if x.shape[0] == 1:
+        x = x.squeeze(0)
+
+    # Determine max length to pad to
+    max_len = max(seq_len)
+
+    # Split into subsequences
+    subseqs = torch.split(x, seq_len)  # List of [b1, C], [b2, C], ...
+
+    # Pad each subsequence to max_len
+    padded_subseqs = []
+    for s in subseqs:
+        pad_len = max_len - s.size(0)
+        padded = F.pad(s, (0, 0, 0, pad_len), value=value)  # pad (left, right, top, bottom)
+        padded_subseqs.append(padded)
+
+    # Stack into [B, max_len, C]
+    result = torch.stack(padded_subseqs)
+    return result.to(device)
 def convert_padded_M(x, seq_len, device=None, M=300, value=0):
     if device is None:
         device = x.device
@@ -26,7 +50,7 @@ def convert_padded_M(x, seq_len, device=None, M=300, value=0):
     # Stack into final tensor
     result = torch.stack(padded_subseqs)  # [B, M, C]
     return result.to(device)
-def xformer_flattern_subseq(x,seq_lens, batch_size, device=None, with_mask=False):
+def xformer_flattern_subseq(x,seq_lens, batch_size=-1, device=None, with_mask=False):
     B, N = x.shape[0], x.shape[1]
     if device is None:
         device = x.device
