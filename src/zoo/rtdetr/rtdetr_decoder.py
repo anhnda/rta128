@@ -12,7 +12,7 @@ import torch.nn.init as init
 import time
 from .denoising import get_contrastive_denoising_training_group
 from .utils import deformable_attention_core_func, get_activation, inverse_sigmoid
-from .utils import bias_init_with_prob
+from .utils import bias_init_with_prob, pad_to_M
 
 
 from src.core import register
@@ -201,9 +201,14 @@ class TransformerDecoderLayer(nn.Module):
         self.other_dec_time = 0
         self.self_attn_time = 0
         self.cross_attn_time = 0
+        #o_sz = tgt.shape[1]
+        #sz = 100
         start_t = time.time()
+        # tgt = tgt[:,:sz]
+        # query_pos_embed = query_pos_embed[:,:sz]
+        # reference_points = reference_points[:,:sz]
         q = k = self.with_pos_embed(tgt, query_pos_embed)
-
+  
         # if attn_mask is not None:
         #     attn_mask = torch.where(
         #         attn_mask.to(torch.bool),
@@ -217,9 +222,10 @@ class TransformerDecoderLayer(nn.Module):
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
         self.other_dec_time += time.time() - start_t
-        start_t = time.time()
         # cross attention
-        tgt2 = self.cross_attn(\
+        start_t = time.time()
+
+        tgt2 = self.cross_attn(
             self.with_pos_embed(tgt, query_pos_embed), 
             reference_points, 
             memory, 
@@ -227,6 +233,7 @@ class TransformerDecoderLayer(nn.Module):
             memory_mask)
         self.cross_attn_time += time.time() - start_t
         start_t = time.time()
+
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
 
@@ -234,7 +241,9 @@ class TransformerDecoderLayer(nn.Module):
         tgt2 = self.forward_ffn(tgt)
         tgt = tgt + self.dropout4(tgt2)
         tgt = self.norm3(tgt.clamp(min=-65504, max=65504))
+        # tgt = pad_to_M(tgt, o_sz)
         self.other_dec_time += time.time() - start_t
+
         return tgt
 
 
@@ -259,17 +268,25 @@ class TransformerDecoder(nn.Module):
                 score_head,
                 query_pos_head,
                 attn_mask=None,
-                memory_mask=None):
+                memory_mask=None,
+                sub_seq_len=None):
         output = tgt
         dec_out_bboxes = []
         dec_out_logits = []
         ref_points_detach = F.sigmoid(ref_points_unact)
-
+        sz = max(sub_seq_len)
+        ref_points_detach = ref_points_detach[:,:sz]
+        output = output[:,:sz]
         for i, layer in enumerate(self.layers):
             start_t = time.time()
 
             ref_points_input = ref_points_detach.unsqueeze(2)
             query_pos_embed = query_pos_head(ref_points_detach)
+
+            #ref_points_input = ref_points_input[:,:sz]
+            #query_pos_embed = query_pos_embed[:,:sz]
+            #ref_points_detach = ref_points_detach[:,:sz]
+
             self.dec_data_prepare_time += time.time() - start_t
             start_t = time.time()
             output = layer(output, ref_points_input, memory,
@@ -301,7 +318,7 @@ class TransformerDecoder(nn.Module):
         dec_bb =  torch.stack(dec_out_bboxes)
         dec_lg = torch.stack(dec_out_logits)
         self.dec_data_prepare_time += time.time() - start_t
-        return dec_bb, dec_lg
+        return dec_bb, dec_lg, sub_seq_len
 @register
 class RTDETRTransformer(nn.Module):
     __share__ = ['num_classes']
@@ -566,7 +583,9 @@ class RTDETRTransformer(nn.Module):
 
         start_t = time.time()
         # decoder
-        out_bboxes, out_logits = self.decoder(
+        bs = target.shape[0]
+        sub_seq_len = [100 + (i+1)*5 for i in range(bs)]
+        out_bboxes, out_logits, sub_seq_len = self.decoder(
             target,
             init_ref_points_unact,
             memory,
@@ -575,7 +594,10 @@ class RTDETRTransformer(nn.Module):
             self.dec_bbox_head,
             self.dec_score_head,
             self.query_pos_head,
-            attn_mask=attn_mask)
+            attn_mask=attn_mask,
+            sub_seq_len=sub_seq_len)
+
+
         end_t = time.time()
         self.t_stats += end_t - start_t
         start_t = time.time()
@@ -592,6 +614,8 @@ class RTDETRTransformer(nn.Module):
             if self.training and dn_meta is not None:
                 out['dn_aux_outputs'] = self._set_aux_loss(dn_out_logits, dn_out_bboxes)
                 out['dn_meta'] = dn_meta
+        else:
+            out['aux_sub_seq_len'] = sub_seq_len
         self.other_time += time.time() -start_t
 
         return out

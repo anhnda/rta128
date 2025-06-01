@@ -111,7 +111,7 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
     #         output_dir=os.path.join(output_dir, "panoptic_eval"),
     #     )
     ic = -1
-    mx = 300
+    mx = 3000
     infer_time = 0
     for samples, targets in metric_logger.log_every(data_loader, 10, header):
         ic += 1
@@ -139,8 +139,9 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
         #                      **loss_dict_reduced_unscaled)
         # metric_logger.update(class_error=loss_dict_reduced['class_error'])
 
-        orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)        
-        results = postprocessors(outputs, orig_target_sizes)
+        orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0) 
+        sub_seq_len = outputs['aux_sub_seq_len']      
+        results = postprocessors(outputs, orig_target_sizes,sub_seq_len)
         # results = postprocessors(outputs, targets)
 
         # if 'segm' in postprocessors.keys():

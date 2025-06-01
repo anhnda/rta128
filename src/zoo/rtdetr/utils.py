@@ -7,6 +7,19 @@ import torch.nn as nn
 import torch.nn.functional as F 
 
 
+def pad_to_M(x, M, value=0):
+    """
+    Pad a tensor of shape [B, N, C] to [B, M, C] along the N dimension.
+    """
+    _, N, _ = x.shape
+    if M < N:
+        raise ValueError(f"Target length M={M} must be >= current length N={N}")
+
+    pad_len = M - N
+    # Pad format: (last_dim_pad_left, last_dim_pad_right, ..., 2nd_dim_pad_left, 2nd_dim_pad_right, 1st_dim_pad_left, 1st_dim_pad_right)
+    padded = F.pad(x, (0, 0, 0, pad_len), value=value)  # pad only along N dimension
+    return padded
+
 def inverse_sigmoid(x: torch.Tensor, eps: float=1e-5) -> torch.Tensor:
     x = x.clip(min=0., max=1.)
     return torch.log(x.clip(min=eps) / (1 - x).clip(min=eps))
