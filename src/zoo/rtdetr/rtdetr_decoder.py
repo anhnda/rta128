@@ -274,11 +274,12 @@ class TransformerDecoder(nn.Module):
         dec_out_bboxes = []
         dec_out_logits = []
         ref_points_detach = F.sigmoid(ref_points_unact)
-        sz = max(sub_seq_len)
-        ref_points_detach = ref_points_detach[:,:sz]
-        output = output[:,:sz]
+      
         for i, layer in enumerate(self.layers):
             start_t = time.time()
+            sz = max(sub_seq_len)
+            ref_points_detach = ref_points_detach[:,:sz]
+            output = output[:,:sz]
 
             ref_points_input = ref_points_detach.unsqueeze(2)
             query_pos_embed = query_pos_head(ref_points_detach)
@@ -314,10 +315,13 @@ class TransformerDecoder(nn.Module):
             ref_points_detach = inter_ref_bbox.detach(
             ) if self.training else inter_ref_bbox
             self.dec_data_prepare_time += time.time() - start_t
+            sub_seq_len = [e - 1 for e in sub_seq_len]
+
         start_t = time.time()
         dec_bb =  torch.stack(dec_out_bboxes)
         dec_lg = torch.stack(dec_out_logits)
         self.dec_data_prepare_time += time.time() - start_t
+        
         return dec_bb, dec_lg, sub_seq_len
 @register
 class RTDETRTransformer(nn.Module):
