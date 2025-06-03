@@ -170,6 +170,8 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
 
     print(f"self_attn_time: {model.decoder.decoder.total_self_attn_time: .4f}, cross_attn_time: {model.decoder.decoder.total_cross_attn_time: .4f}, other_dec_time: {model.decoder.decoder.total_other_dec_time: .4f}")
     print(f"Infer total_dec_data_prepare_time: {model.decoder.decoder.dec_data_prepare_time: .4f}")
+    print(f"Infer total_cal_k_time: {model.decoder.decoder.total_cal_k_time: .4f}")
+
     if coco_evaluator is not None:
         coco_evaluator.synchronize_between_processes()
     if panoptic_evaluator is not None:

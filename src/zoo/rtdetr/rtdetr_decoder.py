@@ -258,6 +258,7 @@ class TransformerDecoder(nn.Module):
         self.total_cross_attn_time = 0
         self.total_other_dec_time = 0
         self.dec_data_prepare_time = 0
+        self.total_cal_k_time = 0
     def forward(self,
                 tgt,
                 ref_points_unact,
@@ -278,7 +279,7 @@ class TransformerDecoder(nn.Module):
             sub_seq_len = torch.tensor(sub_seq_len,dtype=torch.long, device=tgt.device)
         for i, layer in enumerate(self.layers):
             start_t = time.time()
-            sz = max(sub_seq_len)
+            sz = torch.max(sub_seq_len)
             sub_seq_o = sub_seq_len.clone()
             ref_points_detach = ref_points_detach[:,:sz]
             output = output[:,:sz]
@@ -298,12 +299,17 @@ class TransformerDecoder(nn.Module):
             self.total_cross_attn_time += layer.cross_attn_time
             self.total_self_attn_time += layer.self_attn_time
             self.total_other_dec_time += layer.other_dec_time
-            start_t  = time.time()
             inter_ref_bbox = F.sigmoid(bbox_head[i](output) + inverse_sigmoid(ref_points_detach))
+            
+            #sub_seq_len = torch.tensor([100, 100, 100, 100, 100, 100, 100, 100], device = output.device)
+            start_t = time.time()
             dec_out_logiti = score_head[i](output)
             m_v, m_ind = dec_out_logiti.max(-1)
             sub_seq_len = get_k_tensor_constrained(m_v,offset=50, lag=40-i*8,sub_seq=sub_seq_len)
             #sub_seq_len = [v.item() for v in sub_seq_len]
+            #self.total_cal_k_time += time.time() - start_t
+            #start_t  = time.time()
+
             pass
             if i == len(self.layers) - 1:
                 pass
@@ -601,7 +607,7 @@ class RTDETRTransformer(nn.Module):
         bs = target.shape[0]
         q = target.shape[1]
         # sub_seq_len = [100 + (i+1)*5 for i in range(bs)]
-        sub_seq_len = [q for _ in range(bs)]
+        sub_seq_len = torch.tensor([q] * 8, device=target.device, dtype=torch.long)
         sub_seq_len = get_k_tensor_constrained(enc_topk_logits.max(-1)[0], offset=100, lag=50, sub_seq=sub_seq_len)
         #sub_seq_len = [e.item() for e in sub_seq_len]
         out_bboxes, out_logits, sub_seq_len = self.decoder(
