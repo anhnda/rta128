@@ -11,4 +11,5 @@ __pycache__
 */__pycache__
 model.onnx
 model.*
+modela.*
 *.jpg
