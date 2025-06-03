@@ -29,7 +29,10 @@ class RTDETRPostProcessor(nn.Module):
         return f'use_focal_loss={self.use_focal_loss}, num_classes={self.num_classes}, num_top_queries={self.num_top_queries}'
     
     # def forward(self, outputs, orig_target_sizes):
-    def forward(self, outputs, orig_target_sizes, sub_seq_len=None):
+    def forward(self, outputs, orig_target_sizes, sub_seq_len=[]):
+        if len(sub_seq_len) == 0:
+            bs, ln = outputs['pred_logits'].shape[0], outputs['pred_logits'].shape[1]
+            sub_seq_len = [ln for _ in range(bs)]
         x_num_query = max(sub_seq_len)
 
         logits, boxes = outputs['pred_logits'], outputs['pred_boxes']

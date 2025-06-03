@@ -85,6 +85,9 @@ torchrun --nproc_per_node=4 tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coc
 # val on multi-gpu
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 torchrun --nproc_per_node=4 tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml -r path/to/checkpoint --test-only
+
+python tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml -r scheckpoint/rtdetr_r50vd_6x_coco_from_paddle.pth --test-only
+
 ```
 
 </details>
@@ -96,6 +99,8 @@ torchrun --nproc_per_node=4 tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coc
 
 ```shell
 python tools/export_onnx.py -c configs/rtdetr/rtdetr_r18vd_6x_coco.yml -r path/to/checkpoint --check
+
+python tools/export_onnx.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml -r scheckpoint/rtdetr_r50vd_6x_coco_from_paddle.pth --test-only
 ```
 </details>
 
