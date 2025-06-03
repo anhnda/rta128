@@ -9,3 +9,5 @@ scheckpoints
 *.pkl
 __pycache__
 */__pycache__
+*.jpg
+model.*
