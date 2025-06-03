@@ -111,7 +111,7 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
     #         output_dir=os.path.join(output_dir, "panoptic_eval"),
     #     )
     ic = -1
-    mx = 300
+    mx = 3000
     infer_time = 0
     for samples, targets in metric_logger.log_every(data_loader, 10, header):
         ic += 1
