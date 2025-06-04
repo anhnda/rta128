@@ -42,7 +42,7 @@ if __name__ == '__main__':
     print("Available providers:", ort.get_available_providers())
     print("Session providers:", sess.get_providers())
 
-    n_runs = 2
+    n_runs = 200
     times = []
 
     for _ in range(n_runs):
