@@ -13,3 +13,4 @@ model.onnx
 model.*
 modela.*
 *.jpg
+model*.*

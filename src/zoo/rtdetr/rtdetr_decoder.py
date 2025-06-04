@@ -12,7 +12,7 @@ import torch.nn.init as init
 import time
 from .denoising import get_contrastive_denoising_training_group
 from .utils import deformable_attention_core_func, get_activation, inverse_sigmoid
-from .utils import bias_init_with_prob, pad_to_M, get_k, get_k_tensor, get_k_tensor_constrained
+from .utils import bias_init_with_prob, pad_to_M, get_k, get_k_tensor, get_k_tensor_constrained, hash_v
 
 
 from src.core import register
@@ -280,16 +280,13 @@ class TransformerDecoder(nn.Module):
         for i, layer in enumerate(self.layers):
             start_t = time.time()
             sz = torch.max(sub_seq_len)
+            sz = hash_v(sz)
             sub_seq_o = sub_seq_len.clone()
             ref_points_detach = ref_points_detach[:,:sz]
             output = output[:,:sz]
 
             ref_points_input = ref_points_detach.unsqueeze(2)
             query_pos_embed = query_pos_head(ref_points_detach)
-
-            #ref_points_input = ref_points_input[:,:sz]
-            #query_pos_embed = query_pos_embed[:,:sz]
-            #ref_points_detach = ref_points_detach[:,:sz]
 
             self.dec_data_prepare_time += time.time() - start_t
             start_t = time.time()

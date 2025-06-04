@@ -100,7 +100,7 @@ python tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml -r scheckpoint/
 ```shell
 python tools/export_onnx.py -c configs/rtdetr/rtdetr_r18vd_6x_coco.yml -r path/to/checkpoint --check
 
-python tools/export_onnx.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml -r scheckpoint/rtdetr_r50vd_6x_coco_from_paddle.pth --test-only
+python tools/export_onnx.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml -r scheckpoint/rtdetr_r50vd_6x_coco_from_paddle.pth --check
 ```
 </details>
 

@@ -20,7 +20,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-ox', '--onnx_file', type=str, default="model.onnx")
-    parser.add_argument('-f', '--im_file', type=str, default="000000000139.jpg")
+    parser.add_argument('-f', '--im_file', type=str, default="000000000285.jpg")
     parser.add_argument('-d', '--device', type=str, default='cuda:0')
 
     args = parser.parse_args()
@@ -42,7 +42,7 @@ if __name__ == '__main__':
     print("Available providers:", ort.get_available_providers())
     print("Session providers:", sess.get_providers())
 
-    n_runs = 200
+    n_runs = 500
     times = []
 
     for _ in range(n_runs):

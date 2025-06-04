@@ -60,8 +60,9 @@ def main(args, ):
         input_names=['images', 'orig_target_sizes'],
         output_names=['labels', 'boxes', 'scores'],
         dynamic_axes=dynamic_axes,
-        opset_version=16, 
-        verbose=False
+        opset_version=17, 
+        verbose=False,
+
     )
 
 

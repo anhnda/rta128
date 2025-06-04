@@ -137,28 +137,25 @@ def get_k_tensor(ar, offset=20, lag=10, alpha=1, beta=0.4, gamma=0.5):
     best_k = k_range[best_indices]  # (batch_size,)
 
     return best_k + lag
-def get_k_tensor_constrained(x, sub_seq, offset=20, lag=10, alpha=1, beta=0.4, gamma=0.5):
+def get_k_tensor_constrained_last_pos(x, sub_seq, offset: int = 20, lag: int = 10, alpha: float = 1.0, beta: float = 0.4, gamma: float = 0.5):
     B, C = x.shape
     device = x.device
+    #sub_seq = sub_seq - 50
+    #print(B,C, sub_seq)
+    #return torch.tensor([100] * B, device = device)
 
-    # Create a batch index tensor
-    row_idx = torch.arange(B, device=device).unsqueeze(1)  # (B, 1)
-    col_idx = torch.arange(C, device=device).unsqueeze(0)  # (1, C)
-
-    # Build mask of valid positions (i.e., before sub_seq)
-    valid_mask = col_idx < sub_seq.unsqueeze(1)  # (B, C)
-    nonzero_mask = (x != 0) & valid_mask         # (B, C)
-
+    #row_idx = torch.arange(B, device=device).unsqueeze(1)
+    col_idx = torch.arange(C, device=device).unsqueeze(0)
+    valid_mask = col_idx < sub_seq.unsqueeze(1)
+    nonzero_mask = (x != 0) & valid_mask
     flipped = nonzero_mask.flip(dims=[1])
     idx = flipped.float().argmax(dim=1)
     last_idx = C - 1 - idx
-
-    # Mask for rows with no non-zero values in valid region
     invalid = nonzero_mask.sum(dim=1) == 0
     last_idx[invalid] = -1
-    #print("???")
     return last_idx + lag + offset
-def get_k_tensor_constrainedxx(ar, sub_seq, offset=20, lag=10, alpha=1, beta=0.4, gamma=0.5):
+
+def get_k_tensor_constrained(ar, sub_seq, offset=20, lag=10, alpha=1, beta=0.4, gamma=0.5):
     """
     Zero-warning ONNX version. Requires sub_seq to be a tensor for tracing.
     Call this version during ONNX export to eliminate all warnings.
@@ -167,10 +164,10 @@ def get_k_tensor_constrainedxx(ar, sub_seq, offset=20, lag=10, alpha=1, beta=0.4
     """
     batch_size, N = ar.shape
     device = ar.device
-    return torch.tensor([100] * batch_size, device = device)
+    # return torch.tensor([100] * batch_size, device = device)
 
     # Assume sub_seq is already a tensor (no conversion during tracing)
-    sub_seq = sub_seq.to(device)
+    # sub_seq = sub_seq.to(device)
 
     # Calculate per-sequence k ranges
     k_end_global = N - offset - lag
@@ -252,6 +249,29 @@ def get_k_tensor_constrainedxx(ar, sub_seq, offset=20, lag=10, alpha=1, beta=0.4
     result = torch.clamp(result, max=sub_seq)
 
     return result
+def hash_v2(v):
+    if v < 50:
+        v = 50
+    elif v < 100:
+        v = 100
+    elif v < 200:
+        v = 200
+    elif v < 250:
+        v = 250
+    else:
+        v = 300
+    return v
+def hash_v(v):
+    thresholds = list(range(50, 301, 5))  # [15, 20, ..., 300]
+    best = thresholds[0]  # default to minimum
+    for t in thresholds:
+        if v >= t:
+            best = t
+        else:
+            break
+    return best
+
+
 def get_k_tensor_constrained2(ar, sub_seq, offset=20, lag=10, alpha=1, beta=0.4, gamma=0.5):
     """
     Vectorized version that processes batch of sequences with per-sequence constraints.
