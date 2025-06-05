@@ -12,7 +12,7 @@ import torch.nn.init as init
 import time
 from .denoising import get_contrastive_denoising_training_group
 from .utils import deformable_attention_core_func, get_activation, inverse_sigmoid
-from .utils import bias_init_with_prob, pad_to_M, get_k, get_k_tensor, get_k_tensor_constrained, hash_v
+from .utils import bias_init_with_prob, get_k_tensor_constrained, hash_v
 
 
 from src.core import register
@@ -259,6 +259,9 @@ class TransformerDecoder(nn.Module):
         self.total_other_dec_time = 0
         self.dec_data_prepare_time = 0
         self.total_cal_k_time = 0
+        self.n_call = 0
+        self.n_query = 0
+        self.n_last_query = 0
     def forward(self,
                 tgt,
                 ref_points_unact,
@@ -277,10 +280,12 @@ class TransformerDecoder(nn.Module):
         ref_points_detach = F.sigmoid(ref_points_unact)
         if type(sub_seq_len) == list:
             sub_seq_len = torch.tensor(sub_seq_len,dtype=torch.long, device=tgt.device)
+        self.n_call += 1
         for i, layer in enumerate(self.layers):
             start_t = time.time()
             sz = torch.max(sub_seq_len)
             sz = hash_v(sz)
+            self.n_query += sz / len(self.layers)
             sub_seq_o = sub_seq_len.clone()
             ref_points_detach = ref_points_detach[:,:sz]
             output = output[:,:sz]
@@ -309,6 +314,7 @@ class TransformerDecoder(nn.Module):
 
             pass
             if i == len(self.layers) - 1:
+                self.n_last_query += max(sub_seq_len)
                 pass
             else:
                 #sub_seq_len = torch.tensor([min(sub_seq_len[i]+90, sub_seq_o[i]) for i in range(len(sub_seq_len))], device=tgt.device)
@@ -604,7 +610,7 @@ class RTDETRTransformer(nn.Module):
         bs = target.shape[0]
         q = target.shape[1]
         # sub_seq_len = [100 + (i+1)*5 for i in range(bs)]
-        sub_seq_len = torch.tensor([q] * 8, device=target.device, dtype=torch.long)
+        sub_seq_len = torch.tensor([q] * bs, device=target.device, dtype=torch.long)
         sub_seq_len = get_k_tensor_constrained(enc_topk_logits.max(-1)[0], offset=100, lag=50, sub_seq=sub_seq_len)
         #sub_seq_len = [e.item() for e in sub_seq_len]
         out_bboxes, out_logits, sub_seq_len = self.decoder(
