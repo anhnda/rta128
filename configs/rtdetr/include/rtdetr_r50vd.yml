@@ -48,6 +48,7 @@ RTDETRTransformer:
   feat_strides: [8, 16, 32]
   hidden_dim: 256
   num_levels: 3
+  infer_adapt: True
 
   num_queries: 300
 

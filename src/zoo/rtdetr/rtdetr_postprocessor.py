@@ -30,7 +30,7 @@ class RTDETRPostProcessor(nn.Module):
     
     # def forward(self, outputs, orig_target_sizes):
     def forward(self, outputs, orig_target_sizes, sub_seq_len=[]):
-        if len(sub_seq_len) == 0:
+        if sub_seq_len is None or len(sub_seq_len) == 0:
             bs, ln = outputs['pred_logits'].shape[0], outputs['pred_logits'].shape[1]
             sub_seq_len = [ln for _ in range(bs)]
         x_num_query = max(sub_seq_len)
@@ -68,9 +68,14 @@ class RTDETRPostProcessor(nn.Module):
                 .to(boxes.device).reshape(labels.shape)
 
         results = []
-        for lab, box, sco, ln in zip(labels, boxes, scores, sub_seq_len):
-            result = dict(labels=lab[:ln], boxes=box[:ln], scores=sco[:ln])
-            results.append(result)
+        if sub_seq_len is not None:
+            for lab, box, sco, ln in zip(labels, boxes, scores, sub_seq_len):
+                result = dict(labels=lab[:ln], boxes=box[:ln], scores=sco[:ln])
+                results.append(result)
+        else:
+            for lab, box, sco in zip(labels, boxes, scores):
+                result = dict(labels=lab, boxes=box, scores=sco)
+                results.append(result)
         
         return results
         

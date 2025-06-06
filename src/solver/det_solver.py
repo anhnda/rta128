@@ -95,8 +95,10 @@ class DetSolver(BaseSolver):
         base_ds = get_coco_api_from_dataset(self.val_dataloader.dataset)
         
         module = self.ema.module if self.ema else self.model
+        print("Infer adapt: ", self.model.decoder.infer_adapt )
+
         test_stats, coco_evaluator = evaluate(module, self.criterion, self.postprocessor,
-                self.val_dataloader, base_ds, self.device, self.output_dir)
+                self.val_dataloader, base_ds, self.device, self.output_dir, infer_adapt=self.model.decoder.infer_adapt)
                 
         if self.output_dir:
             dist.save_on_master(coco_evaluator.coco_eval["bbox"].eval, self.output_dir / "eval.pth")

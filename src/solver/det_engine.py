@@ -90,7 +90,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 
 @torch.no_grad()
-def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors, data_loader, base_ds, device, output_dir):
+def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors, data_loader, base_ds, device, output_dir, infer_adapt=False):
     model.eval()
     criterion.eval()
 
@@ -174,10 +174,11 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
     print(f"self_attn_time: {model.decoder.decoder.total_self_attn_time: .4f}, cross_attn_time: {model.decoder.decoder.total_cross_attn_time: .4f}, other_dec_time: {model.decoder.decoder.total_other_dec_time: .4f}")
     print(f"Infer total_dec_data_prepare_time: {model.decoder.decoder.dec_data_prepare_time: .4f}")
     print(f"Infer total_cal_k_time: {model.decoder.decoder.total_cal_k_time: .4f}")
-    print(f"N_call: {model.decoder.decoder.n_call}, sum_q: {model.decoder.decoder.n_query: .2f} \n,\
-          n_last_query: {model.decoder.decoder.n_last_query} \n\
-          avg: {model.decoder.decoder.n_query/model.decoder.decoder.n_call: .2f} \n\
-          avg_last: {model.decoder.decoder.n_last_query / model.decoder.decoder.n_call :.2f}")
+    if infer_adapt:
+        print(f"N_call: {model.decoder.decoder.n_call}, sum_q: {model.decoder.decoder.n_query: .2f}\
+                \nn_last_query: {model.decoder.decoder.n_last_query} \n\
+                \nAvg: {model.decoder.decoder.n_query/model.decoder.decoder.n_call: .2f}\
+                \nAvg_last: {model.decoder.decoder.n_last_query / model.decoder.decoder.n_call :.2f}")
     if coco_evaluator is not None:
         coco_evaluator.synchronize_between_processes()
     if panoptic_evaluator is not None:
@@ -190,8 +191,10 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
         coco_evaluator.summarize()
     accu_time += time.time() - start_t
 
-    print(f"Eval: {eval_time: .4f}, Accumulate: {accu_time: .4f}, Sum Eval: {eval_time+accu_time: .4f}")
-    # panoptic_res = None
+    print(f"Eval: {eval_time: .6f}\nAccumulate: {accu_time: .6f}\nSum Eval: {eval_time+accu_time: .6f} \
+          \nAvg Eval: {(eval_time+accu_time)/5000: .6f}")
+    print(f"Infer: {metric_logger.total_time - eval_time: .6f} \
+          \nAvg Infer: {(metric_logger.total_time - eval_time)/5000 :.6f}")    # panoptic_res = None
     # if panoptic_evaluator is not None:
     #     panoptic_res = panoptic_evaluator.summarize()
     
