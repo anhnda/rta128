@@ -1,0 +1,94 @@
+Not init distributed mode.
+Load PResNet34 state_dict
+loading annotations into memory...
+Done (t=0.22s)
+creating index...
+index created!
+resume from scheckpoint/rtdetr_r34vd_6x_coco_from_paddle.pth
+Loading ema.state_dict
+Test:  [  0/625]  eta: 0:05:39    time: 0.5440  data: 0.2457  max mem: 880
+Test:  [ 10/625]  eta: 0:01:31    time: 0.1481  data: 0.0295  max mem: 889
+Test:  [ 20/625]  eta: 0:01:14    time: 0.1023  data: 0.0071  max mem: 889
+Test:  [ 30/625]  eta: 0:01:10    time: 0.1016  data: 0.0061  max mem: 889
+Test:  [ 40/625]  eta: 0:01:07    time: 0.1066  data: 0.0059  max mem: 889
+Test:  [ 50/625]  eta: 0:01:05    time: 0.1061  data: 0.0060  max mem: 889
+Test:  [ 60/625]  eta: 0:01:03    time: 0.1067  data: 0.0060  max mem: 889
+Test:  [ 70/625]  eta: 0:01:01    time: 0.1032  data: 0.0060  max mem: 889
+Test:  [ 80/625]  eta: 0:01:00    time: 0.1047  data: 0.0060  max mem: 889
+Test:  [ 90/625]  eta: 0:00:59    time: 0.1111  data: 0.0060  max mem: 889
+Test:  [100/625]  eta: 0:00:57    time: 0.1042  data: 0.0061  max mem: 889
+Test:  [110/625]  eta: 0:00:56    time: 0.1026  data: 0.0059  max mem: 889
+Test:  [120/625]  eta: 0:00:54    time: 0.1011  data: 0.0058  max mem: 889
+Test:  [130/625]  eta: 0:00:53    time: 0.1030  data: 0.0133  max mem: 889
+Test:  [140/625]  eta: 0:00:52    time: 0.1123  data: 0.0134  max mem: 889
+Test:  [150/625]  eta: 0:00:51    time: 0.1063  data: 0.0059  max mem: 889
+Test:  [160/625]  eta: 0:00:50    time: 0.1073  data: 0.0060  max mem: 889
+Test:  [170/625]  eta: 0:00:49    time: 0.1057  data: 0.0060  max mem: 889
+Test:  [180/625]  eta: 0:00:48    time: 0.1063  data: 0.0059  max mem: 889
+Test:  [190/625]  eta: 0:00:46    time: 0.1050  data: 0.0059  max mem: 889
+Test:  [200/625]  eta: 0:00:45    time: 0.1067  data: 0.0059  max mem: 889
+Test:  [210/625]  eta: 0:00:44    time: 0.1078  data: 0.0059  max mem: 889
+Test:  [220/625]  eta: 0:00:43    time: 0.0960  data: 0.0059  max mem: 889
+Test:  [230/625]  eta: 0:00:42    time: 0.1071  data: 0.0059  max mem: 889
+Test:  [240/625]  eta: 0:00:41    time: 0.1077  data: 0.0060  max mem: 889
+Test:  [250/625]  eta: 0:00:40    time: 0.1081  data: 0.0060  max mem: 889
+Test:  [260/625]  eta: 0:00:39    time: 0.1077  data: 0.0060  max mem: 889
+Test:  [270/625]  eta: 0:00:38    time: 0.1058  data: 0.0164  max mem: 889
+Test:  [280/625]  eta: 0:00:36    time: 0.1072  data: 0.0164  max mem: 889
+Test:  [290/625]  eta: 0:00:35    time: 0.0961  data: 0.0059  max mem: 889
+Test:  [300/625]  eta: 0:00:34    time: 0.1059  data: 0.0058  max mem: 889
+Test:  [310/625]  eta: 0:00:33    time: 0.1073  data: 0.0059  max mem: 889
+Test:  [320/625]  eta: 0:00:32    time: 0.0971  data: 0.0058  max mem: 889
+Test:  [330/625]  eta: 0:00:31    time: 0.1099  data: 0.0059  max mem: 889
+Test:  [340/625]  eta: 0:00:30    time: 0.1087  data: 0.0058  max mem: 889
+Test:  [350/625]  eta: 0:00:29    time: 0.1079  data: 0.0058  max mem: 889
+Test:  [360/625]  eta: 0:00:28    time: 0.1085  data: 0.0058  max mem: 889
+Test:  [370/625]  eta: 0:00:27    time: 0.0974  data: 0.0058  max mem: 889
+Test:  [380/625]  eta: 0:00:26    time: 0.1091  data: 0.0058  max mem: 889
+Test:  [390/625]  eta: 0:00:25    time: 0.1073  data: 0.0058  max mem: 889
+Test:  [400/625]  eta: 0:00:23    time: 0.0957  data: 0.0059  max mem: 889
+Test:  [410/625]  eta: 0:00:22    time: 0.0990  data: 0.0058  max mem: 889
+Test:  [420/625]  eta: 0:00:21    time: 0.1145  data: 0.0059  max mem: 889
+Test:  [430/625]  eta: 0:00:20    time: 0.1134  data: 0.0059  max mem: 889
+Test:  [440/625]  eta: 0:00:19    time: 0.0964  data: 0.0059  max mem: 889
+Test:  [450/625]  eta: 0:00:18    time: 0.1106  data: 0.0059  max mem: 889
+Test:  [460/625]  eta: 0:00:17    time: 0.1111  data: 0.0059  max mem: 889
+Test:  [470/625]  eta: 0:00:16    time: 0.0967  data: 0.0059  max mem: 889
+Test:  [480/625]  eta: 0:00:15    time: 0.1120  data: 0.0060  max mem: 889
+Test:  [490/625]  eta: 0:00:14    time: 0.1100  data: 0.0059  max mem: 889
+Test:  [500/625]  eta: 0:00:13    time: 0.0954  data: 0.0059  max mem: 889
+Test:  [510/625]  eta: 0:00:12    time: 0.0982  data: 0.0059  max mem: 889
+Test:  [520/625]  eta: 0:00:11    time: 0.1147  data: 0.0215  max mem: 889
+Test:  [530/625]  eta: 0:00:10    time: 0.1131  data: 0.0215  max mem: 889
+Test:  [540/625]  eta: 0:00:09    time: 0.0969  data: 0.0059  max mem: 889
+Test:  [550/625]  eta: 0:00:07    time: 0.0960  data: 0.0060  max mem: 889
+Test:  [560/625]  eta: 0:00:06    time: 0.1122  data: 0.0059  max mem: 889
+Test:  [570/625]  eta: 0:00:05    time: 0.1133  data: 0.0058  max mem: 889
+Test:  [580/625]  eta: 0:00:04    time: 0.0955  data: 0.0059  max mem: 889
+Test:  [590/625]  eta: 0:00:03    time: 0.0955  data: 0.0058  max mem: 889
+Test:  [600/625]  eta: 0:00:02    time: 0.1138  data: 0.0058  max mem: 889
+Test:  [610/625]  eta: 0:00:01    time: 0.1132  data: 0.0059  max mem: 889
+Test:  [620/625]  eta: 0:00:00    time: 0.0969  data: 0.0059  max mem: 889
+Test:  [624/625]  eta: 0:00:00    time: 0.0973  data: 0.0059  max mem: 889
+Test: Total time: 0:01:06 (0.1059 s / it)
+Averaged stats: 
+Infer time:  18.3481
+Infer Enc:  13.5242, Infer Dec time:  4.8117
+Decoder_through_layer_time:  1.5415, Other dec time:  3.2577, 
+self_attn_time:  0.3237, cross_attn_time:  0.5695, other_dec_time:  0.2497
+Infer total_dec_data_prepare_time:  0.2725
+Accumulating evaluation results...
+DONE (t=6.88s).
+IoU metric: bbox
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.488
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.667
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.526
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.305
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.523
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.660
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.372
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.628
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.698
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.509
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.740
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.867
