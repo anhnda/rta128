@@ -49,6 +49,11 @@ RTDETRTransformer:
   hidden_dim: 256
   num_levels: 3
   infer_adapt: True
+  offset: 50
+  lag: 40
+  alpha: 1.0
+  beta: 0.4
+  gamma: 0.4
 
   num_queries: 300
 

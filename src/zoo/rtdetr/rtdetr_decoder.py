@@ -248,7 +248,7 @@ class TransformerDecoderLayer(nn.Module):
 
 
 class TransformerDecoder(nn.Module):
-    def __init__(self, hidden_dim, decoder_layer, num_layers, eval_idx=-1, infer_adapt=False):
+    def __init__(self, hidden_dim, decoder_layer, num_layers, eval_idx=-1, infer_adapt=False, offset=50,lag=40, alpha=1.0, beta=0.4, gamma=0.4):
         super(TransformerDecoder, self).__init__()
         self.layers = nn.ModuleList([copy.deepcopy(decoder_layer) for _ in range(num_layers)])
         self.hidden_dim = hidden_dim
@@ -263,6 +263,11 @@ class TransformerDecoder(nn.Module):
         self.n_query = 0
         self.n_last_query = 0
         self.infer_adapt = infer_adapt
+        self.offset = offset
+        self.lag = lag
+        self.alpha = alpha
+        self.beta = beta
+        self.gamma = gamma
     def forward(self,
                 tgt,
                 ref_points_unact,
@@ -313,7 +318,7 @@ class TransformerDecoder(nn.Module):
             if self.infer_adapt:
                 dec_out_logiti = score_head[i](output)
                 m_v, m_ind = dec_out_logiti.max(-1)
-                sub_seq_len = get_k_tensor_constrained(m_v,offset=50, lag=40-i*8,sub_seq=sub_seq_len)
+                sub_seq_len = get_k_tensor_constrained(m_v,offset=self.offset, lag=self.lag-i*int(self.lag/5),alpha=self.alpha, beta = self.beta, gamma = self.gamma, sub_seq=sub_seq_len)
                 #sub_seq_len = [v.item() for v in sub_seq_len]
                 #self.total_cal_k_time += time.time() - start_t
                 #start_t  = time.time()
@@ -323,7 +328,7 @@ class TransformerDecoder(nn.Module):
                     pass
                 else:
                     #sub_seq_len = torch.tensor([min(sub_seq_len[i]+90, sub_seq_o[i]) for i in range(len(sub_seq_len))], device=tgt.device)
-                    sub_seq_len = torch.minimum(sub_seq_len+90, sub_seq_o)
+                    sub_seq_len = torch.minimum(sub_seq_len+self.offset + self.lag, sub_seq_o)
                     pass
             if self.training:
                 dec_out_logits.append(score_head[i](output))
@@ -373,7 +378,12 @@ class RTDETRTransformer(nn.Module):
                  eval_idx=-1,
                  eps=1e-2, 
                  aux_loss=True,
-                 infer_adapt=False):
+                 infer_adapt=False,
+                 offset=50,
+                 lag=40,
+                 alpha=1.0,
+                 beta=0.4,
+                 gamma=0.4):
 
         super(RTDETRTransformer, self).__init__()
         assert position_embed_type in ['sine', 'learned'], \
@@ -383,6 +393,11 @@ class RTDETRTransformer(nn.Module):
         for _ in range(num_levels - len(feat_strides)):
             feat_strides.append(feat_strides[-1] * 2)
         self.infer_adapt = infer_adapt
+        self.offset = offset
+        self.lag = lag
+        self.alpha = alpha
+        self.beta = beta
+        self.gamma = gamma
         self.hidden_dim = hidden_dim
         self.nhead = nhead
         self.feat_strides = feat_strides
@@ -400,7 +415,7 @@ class RTDETRTransformer(nn.Module):
 
         # Transformer module
         decoder_layer = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, activation, num_levels, num_decoder_points)
-        self.decoder = TransformerDecoder(hidden_dim, decoder_layer, num_decoder_layers, eval_idx, infer_adapt)
+        self.decoder = TransformerDecoder(hidden_dim, decoder_layer, num_decoder_layers, eval_idx, infer_adapt,offset,lag,alpha, beta, gamma)
 
         self.num_denoising = num_denoising
         self.label_noise_ratio = label_noise_ratio
