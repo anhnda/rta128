@@ -185,10 +185,10 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
         coco_evaluator.summarize()
     accu_time += time.time() - start_t
 
-    print(f"Eval: {eval_time: .4f}, Accumulate: {accu_time: .4f}, Sum Eval: {eval_time+accu_time: .4f}, \
-          Avg Eval: {(eval_time+accu_time)/5000: .4f}")
-    print(f"Infer: {metric_logger.total_time - eval_time: .4f}. \
-          Avg Infer: {(metric_logger.total_time - eval_time)/5000 :.4f}")
+    print(f"Eval: {eval_time: .6f}\nAccumulate: {accu_time: .6f}\nSum Eval: {eval_time+accu_time: .6f} \
+          \nAvg Eval: {(eval_time+accu_time)/5000: .6f}")
+    print(f"Infer: {metric_logger.total_time - eval_time: .6f} \
+          \nAvg Infer: {(metric_logger.total_time - eval_time)/5000 :.6f}")
 
     # panoptic_res = None
     # if panoptic_evaluator is not None:

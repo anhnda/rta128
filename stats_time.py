@@ -11,7 +11,7 @@ def get_eval_log_v1_sz(suffix="a", sz=50, n = 10):
     for i in range(n):
         out_path_i = "%s/eval_%d_%d.txt" % (LOG_DIR, sz,i)
         cmd = RUNNING_CMD_PATTERN_V1 % (sz,sz)
-        cmd += " >> " + out_path_i
+        cmd += " > " + out_path_i
         print("Running: ", cmd)
         os.system(cmd)
 
