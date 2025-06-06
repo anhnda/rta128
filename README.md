@@ -96,6 +96,11 @@ torchrun --nproc_per_node=4 tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_coc
 
 ```shell
 python tools/export_onnx.py -c configs/rtdetr/rtdetr_r50vd_6x_coco.yml -r scheckpoint/rtdetr_r50vd_6x_coco_from_paddle.pth --check
+
+python tools/export_onnx.py -c configs/rtdetr/rtdetr_r18vd_6x_coco.yml -r scheckpoint/rtdetr_r18vd_6x_coco_from_paddle.pth --check
+
+python tools/export_onnx.py -c configs/rtdetr/rtdetr_r34vd_6x_coco.yml -r scheckpoint/rtdetr_r34vd_6x_coco_from_paddle.pth --check
+
 ```
 </details>
 
