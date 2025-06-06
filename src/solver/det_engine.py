@@ -113,6 +113,8 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
     ic = -1
     mx = 3000
     infer_time = 0
+    eval_time = 0
+    accu_time = 0
     for samples, targets in metric_logger.log_every(data_loader, 10, header):
         ic += 1
         if ic == mx:
@@ -149,9 +151,10 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
         #     results = postprocessors['segm'](results, outputs, orig_target_sizes, target_sizes)
 
         res = {target['image_id'].item(): output for target, output in zip(targets, results)}
+        start_t = time.time()
         if coco_evaluator is not None:
             coco_evaluator.update(res)
-
+        eval_time += time.time() - start_t
         # if panoptic_evaluator is not None:
         #     res_pano = postprocessors["panoptic"](outputs, target_sizes, orig_target_sizes)
         #     for i, target in enumerate(targets):
@@ -181,10 +184,13 @@ def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
         panoptic_evaluator.synchronize_between_processes()
 
     # accumulate predictions from all images
+    start_t = time.time()
     if coco_evaluator is not None:
         coco_evaluator.accumulate()
         coco_evaluator.summarize()
+    accu_time += time.time() - start_t
 
+    print(f"Eval: {eval_time: .4f}, Accumulate: {accu_time: .4f}, Sum Eval: {eval_time+accu_time: .4f}")
     # panoptic_res = None
     # if panoptic_evaluator is not None:
     #     panoptic_res = panoptic_evaluator.summarize()

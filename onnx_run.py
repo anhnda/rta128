@@ -19,8 +19,8 @@ import torchvision.transforms as T
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('-ox', '--onnx_file', type=str, default="model.onnx")
-    parser.add_argument('-f', '--im_file', type=str, default="000000000285.jpg")
+    parser.add_argument('-ox', '--onnx_file', type=str, default="model18o.onnx")
+    parser.add_argument('-f', '--im_file', type=str, default="000000000139.jpg")
     parser.add_argument('-d', '--device', type=str, default='cuda:0')
 
     args = parser.parse_args()
@@ -38,11 +38,13 @@ if __name__ == '__main__':
     ])
     im_data = transforms(im_pil)[None]
     print(im_data.device)
-    sess = ort.InferenceSession(args.onnx_file, providers=["CUDAExecutionProvider"])
+    #sess = ort.InferenceSession(args.onnx_file, providers=["CUDAExecutionProvider"])
+    sess = ort.InferenceSession(args.onnx_file)
+
     print("Available providers:", ort.get_available_providers())
     print("Session providers:", sess.get_providers())
 
-    n_runs = 500
+    n_runs = 100
     times = []
 
     for _ in range(n_runs):
@@ -57,4 +59,5 @@ if __name__ == '__main__':
         times.append(time.perf_counter() - start)
 
     avg_time = sum(times) / n_runs
-    print(f"Average inference time over {n_runs} runs: {avg_time * 1000:.2f} ms")
+
+    print(f"Average inference time over {n_runs} runs: {avg_time * 1000:.2f} ms. FPS: {1.0 / avg_time}")
