@@ -237,7 +237,7 @@ def draw(images, labels, boxes, scores, thrh = 0.6):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('-trt', '--trt-file', type=str, default="modelo.engine")
+    parser.add_argument('-trt', '--trt-file', type=str, default="model.engine")
     parser.add_argument('-f', '--im-file', type=str, default="000000000285.jpg")
     parser.add_argument('-d', '--device', type=str, default='cuda:0')
 
