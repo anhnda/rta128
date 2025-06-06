@@ -15,3 +15,6 @@ modela.*
 *.jpg
 model*.*
 output/*/*
+logs
+logs/*
+logs/*/*
