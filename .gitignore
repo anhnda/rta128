@@ -18,3 +18,4 @@ output/*/*
 logs
 logs/*
 logs/*/*
+logs/eval.pth
