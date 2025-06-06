@@ -15,3 +15,4 @@ modela.*
 mode*.*
 *.png
 logs
+output/*/*
