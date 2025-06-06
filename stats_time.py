@@ -20,4 +20,4 @@ def get_eval_log_v1_all(suffix="a", n = 10):
         get_eval_log_v1_sz(suffix=suffix, sz=sz, n = n)
 
 if __name__ == "__main__":
-    get_eval_log_v1_all(suffix="o",n=10)
+    get_eval_log_v1_all(suffix="o",n=5)

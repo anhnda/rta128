@@ -16,3 +16,5 @@ mode*.*
 *.png
 logs
 output/*/*
+logs/*
+output/*
