@@ -19,3 +19,5 @@ logs
 logs/*
 logs/*/*
 logs/eval.pth
+models/*
+models/*/*
