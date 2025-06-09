@@ -13,8 +13,8 @@ import torch.nn.init as init
 from .denoising import get_contrastive_denoising_training_group
 from .utils import deformable_attention_core_func, get_activation, inverse_sigmoid
 from .utils import bias_init_with_prob
-
-
+from .swin_dynamic import SwinTransformerBlock, BasicLayer
+from .local_window_attention import LocalWindowMultiHeadAttention
 from src.core import register
 
 
@@ -333,6 +333,17 @@ class RTDETRTransformer(nn.Module):
         self.num_denoising = num_denoising
         self.label_noise_ratio = label_noise_ratio
         self.box_noise_scale = box_noise_scale
+
+        self.local_combines = nn.ModuleList()
+        for _ in range(3):
+            self.local_combines.append(nn.Sequential(*[
+            BasicLayer(
+                dim=hidden_dim,
+                depth=4,
+                num_heads=8,
+                window_size=4,
+            ) for _ in range(2) 
+        ]))
         # denoising part
         if num_denoising > 0: 
             # self.denoising_class_embed = nn.Embedding(num_classes, hidden_dim, padding_idx=num_classes-1) # TODO for load paddle weights
@@ -346,6 +357,10 @@ class RTDETRTransformer(nn.Module):
 
         # encoder head
         self.enc_output = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim,)
+        )
+        self.enc_output_new = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.LayerNorm(hidden_dim,)
         )
@@ -467,7 +482,41 @@ class RTDETRTransformer(nn.Module):
 
         return anchors, valid_mask
 
+    def _get_encoder_memory_new(self, x, scale_dims):
+        scale_sizes = [h * w for h, w in scale_dims]
+        cumulative_sizes = [0] + [sum(scale_sizes[:i + 1]) for i in range(len(scale_sizes))]
+        B, total_seq_len, C = x.shape
 
+        # Validate input sequence length
+        expected_seq_len = sum(scale_sizes)
+        assert total_seq_len == expected_seq_len, f"Expected sequence length {expected_seq_len}, got {total_seq_len}"
+
+        # Split input into different scales
+        scale_inputs = []
+        for i in range(len(scale_dims)):
+            start_idx = cumulative_sizes[i]
+            end_idx = cumulative_sizes[i + 1]
+            scale_input = x[:, start_idx:end_idx, :]  # [B, hi*wi, C]
+
+            # Reshape to [B, hi, wi, C]
+            h, w = scale_dims[i]
+            scale_input = scale_input.reshape(B, h, w, C)
+            scale_inputs.append(scale_input)
+
+        # Process each scale through its attention module
+        scale_outputs = []
+        for i, (scale_input, attention_module) in enumerate(zip(scale_inputs, self.local_combines)):
+            scale_output = attention_module(scale_input)  # [B, hi, wi, C]
+
+            # Reshape back to [B, hi*wi, C]
+            h, w = scale_dims[i]
+            scale_output = scale_output.reshape(B, h * w, C)
+            scale_outputs.append(scale_output)
+
+        # Combine outputs back into single tensor
+        output = torch.cat(scale_outputs, dim=1)  # [B, h1*w1+h2*w2+h3*w3, C]
+
+        return output
     def _get_decoder_input(self,
                            memory,
                            spatial_shapes,
@@ -483,6 +532,8 @@ class RTDETRTransformer(nn.Module):
         # memory = torch.where(valid_mask, memory, 0)
         memory = valid_mask.to(memory.dtype) * memory  # TODO fix type error for onnx export 
 
+
+        memory = self._get_encoder_memory_new(memory, spatial_shapes) + memory
         output_memory = self.enc_output(memory)
 
         enc_outputs_class = self.enc_score_head(output_memory)
