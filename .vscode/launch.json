@@ -8,11 +8,11 @@
       "python": "/home/anhnda/.conda/envs/rta124/bin/python",
       "program": "${workspaceFolder}/tools/train.py",
       // "args": [
-      //   "-c", "configs/rtdetr/rtdetr_r50vd_6x_coco.yml"
+      //   "-c", "configs/rtdetr/rtdetr_r18vd_6x_coco.yml"
       // ],
       "args":[
-        "-c", "configs/rtdetr/rtdetr_r50vd_6x_coco.yml",
-        "-r", "/home/anhnda/RT-DETR/rta128/scheckpoint/rtdetr_r50vd_6x_coco_from_paddle.pth",
+        "-c", "configs/rtdetr/rtdetr_r18vd_6x_coco.yml",
+        "-r", "scheckpoint/rtdetr_r18vd_6x_coco_from_paddle.pth",
         "--test-only"
       ],
       "cwd": "${workspaceFolder}",
