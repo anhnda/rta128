@@ -9,8 +9,8 @@ RTDETR:
   backbone: PResNet
   encoder: HybridEncoder
   decoder: RTDETRTransformer
-  multi_scale: [480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800]
-
+  # multi_scale: [480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800]
+  multi_scale: [640]
 PResNet:
   depth: 50
   variant: d
