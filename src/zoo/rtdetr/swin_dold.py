@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
 from timm.layers import DropPath, to_2tuple, trunc_normal_
 import math
-
+import torch.nn.init as init 
 try:
     import os, sys
 
@@ -30,6 +30,7 @@ class Mlp(nn.Module):
         self.act = act_layer()
         self.fc2 = nn.Linear(hidden_features, out_features)
         self.drop = nn.Dropout(drop)
+        self._reset_params()
 
     def forward(self, x):
         x = self.fc1(x)
@@ -38,8 +39,12 @@ class Mlp(nn.Module):
         x = self.fc2(x)
         x = self.drop(x)
         return x
+    def _reset_params(self):
+        init.constant_(self.fc1.weight,0)
+        init.constant_(self.fc1.bias,0)
 
-
+        init.constant_(self.fc2.weight,0)
+        init.constant_(self.fc2.bias,0)
 def window_partition(x, window_size):
     """
     Args:
@@ -118,7 +123,12 @@ class WindowAttention(nn.Module):
 
         trunc_normal_(self.relative_position_bias_table, std=.02)
         self.softmax = nn.Softmax(dim=-1)
-
+        self._reset_params()
+    def _reset_params(self):
+        init.xavier_uniform_(self.qkv.weight)
+        init.constant_(self.qkv.bias,0)
+        init.xavier_uniform_(self.proj.weight)
+        init.constant_(self.proj.bias,0)
     def forward(self, x, mask=None):
         """
         Args:
@@ -209,6 +219,7 @@ class SwinTransformerBlock(nn.Module):
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
         self.fused_window_process = fused_window_process
+ 
 
     def create_attention_mask(self, H, W, window_size, shift_size, device):
         """Create attention mask for shifted window attention"""

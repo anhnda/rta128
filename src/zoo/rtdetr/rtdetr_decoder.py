@@ -14,6 +14,7 @@ from .denoising import get_contrastive_denoising_training_group
 from .utils import deformable_attention_core_func, get_activation, inverse_sigmoid
 from .utils import bias_init_with_prob
 from .swin_dold import BasicLayer
+# from .swin_transformer import BasicLayer
 # from .local_window_attention import LocalWindowMultiHeadAttention
 from src.core import register
 
@@ -347,6 +348,7 @@ class RTDETRTransformer(nn.Module):
         self.local_combine = nn.Sequential(*[
             BasicLayer(
                 dim=hidden_dim,
+                #input_resolution=(84, 100),
                 depth=4,
                 num_heads=8,
                 window_size=4,
