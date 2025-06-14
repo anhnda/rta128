@@ -9,7 +9,7 @@ import torch.nn.init as init
 class WindowMultiHeadAttention(nn.Module):
     """Multi-head attention with local windows (Swin-like, single level)"""
 
-    def __init__(self, dim: int, window_size: int = 7, num_heads: int = 8, qkv_bias: bool = True, dropout: float = 0.1):
+    def __init__(self, dim: int, window_size: int = 7, num_heads: int = 8, qkv_bias: bool = True, dropout: float = 0.0):
         super().__init__()
         assert dim % num_heads == 0
 
@@ -176,7 +176,7 @@ class MLPI(nn.Module):
 class MultiScaleFusionBlock(nn.Module):
     """Multi-scale fusion using up/down sampling and 1x1 convolutions"""
 
-    def __init__(self, dim: int, num_heads: int = 8, dropout: float = 0.1):
+    def __init__(self, dim: int, num_heads: int = 8, dropout: float = 0.0):
         super().__init__()
         self.dim = dim
         self.num_heads = num_heads
@@ -188,31 +188,21 @@ class MultiScaleFusionBlock(nn.Module):
 
         # Window-based multi-head attention for each scale
         # Adjust window sizes for each scale (smaller windows for smaller feature maps)
-        window_size_1 = min(7, min(16, 16))  # For scale 1 (highest resolution)
-        window_size_2 = min(5, min(8, 8))  # For scale 2 (middle resolution)
-        window_size_3 = min(3, min(4, 4))  # For scale 3 (lowest resolution)
+        window_size_1 = min(4, min(16, 16))  # For scale 1 (highest resolution)
+        window_size_2 = min(4, min(8, 8))  # For scale 2 (middle resolution)
+        window_size_3 = min(4, min(4, 4))  # For scale 3 (lowest resolution)
 
         self.mha_scale1 = WindowMultiHeadAttention(dim, window_size_1, num_heads, dropout=dropout)
         self.mha_scale2 = WindowMultiHeadAttention(dim, window_size_2, num_heads, dropout=dropout)
         self.mha_scale3 = WindowMultiHeadAttention(dim, window_size_3, num_heads, dropout=dropout)
 
         # Layer normalization
-        self.norm1_1 = nn.LayerNorm(dim)
-        self.norm1_2 = nn.LayerNorm(dim)
-        self.norm1_3 = nn.LayerNorm(dim)
-
-        self.norm2_1 = nn.LayerNorm(dim)
-        self.norm2_2 = nn.LayerNorm(dim)
-        self.norm2_3 = nn.LayerNorm(dim)
+        self.norm1 = nn.LayerNorm(dim)
 
         # Feed-forward networks
         self.ffn1 = MLPI(dim, dim)
-        self.ffn2 = MLPI(dim, dim)
-        self.ffn3 = MLPI(dim, dim)
 
-        self.norm3_1 = nn.LayerNorm(dim)
-        self.norm3_2 = nn.LayerNorm(dim)
-        self.norm3_3 = nn.LayerNorm(dim)
+        self.norm3 = nn.LayerNorm(dim)
 
 
 
@@ -233,21 +223,33 @@ class MultiScaleFusionBlock(nn.Module):
         """Reshape from (B, C, H, W) to (B, H*W, C)"""
         B, C, H, W = x.shape
         return x.reshape(B, C, H * W).transpose(1, 2)
-
-    def forward(self, A1: torch.Tensor, A2: torch.Tensor, A3: torch.Tensor,
-                w1: int, h1: int, w2: int, h2: int, w3: int, h3: int) -> Tuple[
+    @staticmethod
+    def split_multiscale_tensor(x: torch.Tensor, w1: int, h1: int, w2: int, h2: int, w3: int, h3: int) -> Tuple[
         torch.Tensor, torch.Tensor, torch.Tensor]:
         """
+        Split input tensor into three scales
         Args:
-            A1: (B, w1*h1, C) - highest resolution
-            A2: (B, w2*h2, C) - middle resolution
-            A3: (B, w3*h3, C) - lowest resolution
-            w1, h1, w2, h2, w3, h3: spatial dimensions
+            x: (B, w1*h1 + w2*h2 + w3*h3, C)
         Returns:
-            Tuple of three enhanced tensors with same shapes as input
+            A1: (B, w1*h1, C)
+            A2: (B, w2*h2, C)
+            A3: (B, w3*h3, C)
         """
-        B, _, C = A1.shape
+        n1, n2, n3 = w1 * h1, w2 * h2, w3 * h3
 
+        A1 = x[:, :n1, :]
+        A2 = x[:, n1:n1 + n2, :]
+        A3 = x[:, n1 + n2:n1 + n2 + n3, :]
+
+        return A1, A2, A3
+    def forward(self, x: torch.Tensor, shapes) -> Tuple[
+        torch.Tensor, torch.Tensor, torch.Tensor]:
+
+        (w1, h1) , (w2 , h2) , (w3, h3) = shapes
+        shortcut = x
+        x = self.norm1(x)
+        A1, A2, A3 = self.split_multiscale_tensor(x,w1,h1,w2,h2,w3,h3)
+        
         # Convert to spatial format (B, C, H, W)
         A1_spatial = self._reshape_to_spatial(A1, h1, w1)  # (B, C, h1, w1)
         A2_spatial = self._reshape_to_spatial(A2, h2, w2)  # (B, C, h2, w2)
@@ -291,14 +293,14 @@ class MultiScaleFusionBlock(nn.Module):
         A3_fused_seq = self._reshape_to_sequence(A3_fused)  # (B, h3*w3, C)
 
         # Add residual connections
-        A1_fused_seq = A1 + A1_fused_seq
-        A2_fused_seq = A2 + A2_fused_seq
-        A3_fused_seq = A3 + A3_fused_seq
+        # A1_fused_seq = A1 + A1_fused_seq
+        # A2_fused_seq = A2 + A2_fused_seq
+        # A3_fused_seq = A3 + A3_fused_seq
 
         # Layer normalization
-        A1_fused_seq = self.norm1_1(A1_fused_seq)
-        A2_fused_seq = self.norm1_2(A2_fused_seq)
-        A3_fused_seq = self.norm1_3(A3_fused_seq)
+        # A1_fused_seq = self.norm1_1(A1_fused_seq)
+        # A2_fused_seq = self.norm1_2(A2_fused_seq)
+        # A3_fused_seq = self.norm1_3(A3_fused_seq)
 
         # === Multi-head attention with local windows for each scale ===
         A1_attn = self.mha_scale1(A1_fused_seq, h1, w1)
@@ -306,32 +308,35 @@ class MultiScaleFusionBlock(nn.Module):
         A3_attn = self.mha_scale3(A3_fused_seq, h3, w3)
 
         # Residual connection
-        A1_attn = A1_fused_seq + A1_attn
-        A2_attn = A2_fused_seq + A2_attn
-        A3_attn = A3_fused_seq + A3_attn
+        # A1_attn = A1_fused_seq + A1_attn
+        # A2_attn = A2_fused_seq + A2_attn
+        # A3_attn = A3_fused_seq + A3_attn
+        x = torch.cat([A1_attn, A2_attn, A3_attn], dim=1)
+        x = shortcut + x
+        x = x + self.ffn1(self.norm3(x))
 
         # Layer normalization
-        A1_attn = self.norm2_1(A1_attn)
-        A2_attn = self.norm2_2(A2_attn)
-        A3_attn = self.norm2_3(A3_attn)
+        # A1_attn = self.norm2_1(A1_attn)
+        # A2_attn = self.norm2_2(A2_attn)
+        # A3_attn = self.norm2_3(A3_attn)
 
         # === Feed-forward networks ===
-        A1_out = A1_attn + self.ffn1(A1_attn)
-        A2_out = A2_attn + self.ffn2(A2_attn)
-        A3_out = A3_attn + self.ffn3(A3_attn)
+        # A1_out = A1_attn + self.ffn1(A1_attn)
+        # A2_out = A2_attn + self.ffn2(A2_attn)
+        # A3_out = A3_attn + self.ffn3(A3_attn)
 
         # Final layer normalization
-        A1_out = self.norm3_1(A1_out)
-        A2_out = self.norm3_2(A2_out)
-        A3_out = self.norm3_3(A3_out)
+        # A1_out = self.norm3_1(A1_out)
+        # A2_out = self.norm3_2(A2_out)
+        # A3_out = self.norm3_3(A3_out)
 
-        return A1_out, A2_out, A3_out
+        return x
 
 
 class MultiScaleFusion(nn.Module):
     """Multi-layer multi-scale fusion network"""
 
-    def __init__(self, dim: int, num_layers: int = 2, num_heads: int = 8, dropout: float = 0.1):
+    def __init__(self, dim: int, num_layers: int = 2, num_heads: int = 8, dropout: float = 0.0):
         super().__init__()
         self.num_layers = num_layers
 
@@ -339,41 +344,12 @@ class MultiScaleFusion(nn.Module):
             MultiScaleFusionBlock(dim, num_heads, dropout)
             for _ in range(num_layers)
         ])
-    @staticmethod
-    def split_multiscale_tensor(x: torch.Tensor, w1: int, h1: int, w2: int, h2: int, w3: int, h3: int) -> Tuple[
-        torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Split input tensor into three scales
-        Args:
-            x: (B, w1*h1 + w2*h2 + w3*h3, C)
-        Returns:
-            A1: (B, w1*h1, C)
-            A2: (B, w2*h2, C)
-            A3: (B, w3*h3, C)
-        """
-        n1, n2, n3 = w1 * h1, w2 * h2, w3 * h3
 
-        A1 = x[:, :n1, :]
-        A2 = x[:, n1:n1 + n2, :]
-        A3 = x[:, n1 + n2:n1 + n2 + n3, :]
-
-        return A1, A2, A3
     def forward(self, x: torch.Tensor,shapes) -> torch.Tensor:
-        """
-        Args:
-            A1: (B, w1*h1, C)
-            A2: (B, w2*h2, C)
-            A3: (B, w3*h3, C)
-            w1, h1, w2, h2, w3, h3: spatial dimensions
-        Returns:
-            Tuple of three enhanced tensors
-        """
-        (w1, h1) , (w2 , h2) , (w3, h3) = shapes
-        A1, A2, A3 = self.split_multiscale_tensor(x, w1, h1, w2, h2, w3, h3)
-        for layer in self.layers:
-            A1, A2, A3 = layer(A1, A2, A3, w1, h1, w2, h2, w3, h3)
 
-        return torch.cat([A1, A2, A3], dim=1)
+        for layer in self.layers:
+            x = layer(x, shapes)
+        return x
 
 
 
