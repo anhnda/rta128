@@ -7,3 +7,7 @@ scheckpoints
 __pycache__
 */__pycache__
 log*.txt
+*.jpg
+models/*
+logs/*
+models*.*

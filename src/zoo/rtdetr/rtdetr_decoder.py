@@ -13,8 +13,9 @@ import torch.nn.init as init
 from .denoising import get_contrastive_denoising_training_group
 from .utils import deformable_attention_core_func, get_activation, inverse_sigmoid
 from .utils import bias_init_with_prob
-from .swin_dold import BasicLayer
+#from .swin_dold import BasicLayer
 # from .swin_transformer import BasicLayer
+from .xfusion import MultiScaleFusion
 # from .local_window_attention import LocalWindowMultiHeadAttention
 from src.core import register
 
@@ -345,14 +346,16 @@ class RTDETRTransformer(nn.Module):
             #     window_size=4,
             # ) for _ in range(2) 
         # ]))
-        self.local_combine = nn.Sequential(*[
-            BasicLayer(
-                dim=hidden_dim,
-                #input_resolution=(84, 100),
-                depth=4,
-                num_heads=8,
-                window_size=4,
-            ) for _ in range(2)])
+        # self.local_combine = nn.Sequential(*[
+        #     BasicLayer(
+        #         dim=hidden_dim,
+        #         input_resolution=(84, 100),
+        #         depth=4,
+        #         num_heads=8,
+        #         window_size=4,
+        #     ) for _ in range(2)])
+        self.local_combine = None
+        self.xfusion = MultiScaleFusion(hidden_dim,1,8)
         # denoising part
         if num_denoising > 0: 
             # self.denoising_class_embed = nn.Embedding(num_classes, hidden_dim, padding_idx=num_classes-1) # TODO for load paddle weights
@@ -495,10 +498,11 @@ class RTDETRTransformer(nn.Module):
         # scale_sizes = [h * w for h, w in scale_dims]
         # cumulative_sizes = [0] + [sum(scale_sizes[:i + 1]) for i in range(len(scale_sizes))]
         # 
-        B, total_seq_len, C = x.shape
-        assert total_seq_len == 8400
-        output = self.local_combine(x)
-        output = output.view(B,8400,C)
+        # B, total_seq_len, C = x.shape
+        # assert total_seq_len == 8400
+        # output = self.local_combine(x)
+        # output = output.view(B,8400,C)
+        output = self.xfusion(x,scale_dims)
 
         return output
     def _get_decoder_input(self,
