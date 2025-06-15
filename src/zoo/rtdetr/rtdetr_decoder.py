@@ -15,7 +15,9 @@ from .utils import deformable_attention_core_func, get_activation, inverse_sigmo
 from .utils import bias_init_with_prob
 #from .swin_dold import BasicLayer
 # from .swin_transformer import BasicLayer
-from .xfusion import MultiScaleFusion
+# from .xfusion import MultiScaleFusion
+
+from .ss_cnn import SameShapeCNN
 # from .local_window_attention import LocalWindowMultiHeadAttention
 from src.core import register
 
@@ -354,8 +356,8 @@ class RTDETRTransformer(nn.Module):
         #         num_heads=8,
         #         window_size=4,
         #     ) for _ in range(2)])
-        self.local_combine = None
-        self.xfusion = MultiScaleFusion(hidden_dim,1,8)
+        self.local_combine = SameShapeCNN(hidden_dim)
+        # self.xfusion = MultiScaleFusion(hidden_dim,1,8)
         # denoising part
         if num_denoising > 0: 
             # self.denoising_class_embed = nn.Embedding(num_classes, hidden_dim, padding_idx=num_classes-1) # TODO for load paddle weights
@@ -500,9 +502,9 @@ class RTDETRTransformer(nn.Module):
         # 
         # B, total_seq_len, C = x.shape
         # assert total_seq_len == 8400
-        # output = self.local_combine(x)
+        output = self.local_combine(x)
         # output = output.view(B,8400,C)
-        output = self.xfusion(x,scale_dims)
+        # output = self.xfusion(x,scale_dims)
 
         return output
     def _get_decoder_input(self,
