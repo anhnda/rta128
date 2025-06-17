@@ -113,9 +113,9 @@ class SameShapeCNNComb(nn.Module):
 
         A1, A2, A3 = x[:, :L1, :], x[:, L1:L1+L2, :], x[:, L1+L2:, :]
 
-        A1 = self.cnn_block(A1, 64, 100)
-        A2 = self.cnn_block(A2, 16, 100)
-        A3 = self.cnn_block(A3, 4, 100)
+        A1 = self.cnn_block(A1, 80, 80)
+        A2 = self.cnn_block(A2, 40, 40)
+        A3 = self.cnn_block(A3, 20, 20)
 
         x = torch.cat([A1, A2, A3], dim=1)
         x = x + shortcut
